@@ -1,0 +1,25 @@
+[project]
+name = "ghumo-backend"
+version = "0.1.0"
+description = "Scalable backend for travel discovery and itinerary planning"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "pydantic-settings",
+    "python-dotenv",
+    "httpx",
+    "scrapy",
+    "beautifulsoup4",
+    "playwright",
+    "transformers",
+    "torch",
+    "sentencepiece",
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
