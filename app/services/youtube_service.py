@@ -1,15 +1,83 @@
 import logging
 import asyncio
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+import httpx
 from youtubesearchpython import VideosSearch, Comments
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from youtube_transcript_api.proxies import WebshareProxyConfig
 import random
 from app.utils.config import settings
+from app.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
 
 class YouTubeService:
+    async def fetch_external_transcript(self, video_url_or_id: str) -> Optional[str]:
+        """
+        Fetch transcript via external Jay Paun YouTube Transcript API with daily (24h) caching.
+        Enforces at most 1 external API call per video per day across worker/search tasks.
+        """
+        if not video_url_or_id:
+            return None
+
+        # Build clean URL and extract video_id
+        if video_url_or_id.startswith("http://") or video_url_or_id.startswith("https://"):
+            video_url = video_url_or_id
+            video_id = video_url
+            if "v=" in video_url:
+                video_id = video_url.split("v=")[1].split("&")[0]
+            elif "youtu.be/" in video_url:
+                video_id = video_url.split("youtu.be/")[1].split("?")[0]
+            elif "/shorts/" in video_url:
+                video_id = video_url.split("/shorts/")[1].split("?")[0]
+        else:
+            video_id = video_url_or_id
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        # 1. Check daily cache key (e.g. yt_transcript:video_id:2026-09-09)
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        cache_key = f"yt_transcript:{video_id}:{today_str}"
+        
+        cached_transcript = await cache_service.get_cache(cache_key)
+        if cached_transcript is not None:
+            logger.info(f"Reusing today's cached transcript for video: {video_id}")
+            if isinstance(cached_transcript, dict):
+                return cached_transcript.get("transcript")
+            return str(cached_transcript)
+
+        # 2. Call external POST /transcript endpoint if configured
+        api_url = settings.YOUTUBE_TRANSCRIPT_API_URL
+        if not api_url:
+            logger.info("No YOUTUBE_TRANSCRIPT_API_URL configured, skipping external API.")
+            return None
+
+        logger.info(f"Calling external YouTube Transcript API for video {video_id}...")
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(api_url, json={"url": video_url})
+                if res.status_code == 200:
+                    resp_json = res.json()
+                    transcript_text = ""
+                    if isinstance(resp_json, dict):
+                        transcript_text = resp_json.get("transcript") or resp_json.get("text") or str(resp_json)
+                    elif isinstance(resp_json, list):
+                        transcript_text = " ".join([t.get("text", "") for t in resp_json if isinstance(t, dict)])
+                    else:
+                        transcript_text = str(resp_json)
+
+                    if transcript_text:
+                        # Cache for 24 hours (86400 seconds)
+                        await cache_service.set_cache(cache_key, {"transcript": transcript_text}, ttl=86400)
+                        logger.info(f"Successfully fetched and cached transcript for video {video_id}")
+                        return transcript_text
+                else:
+                    logger.warning(f"External transcript API returned status {res.status_code} for {video_id}")
+        except Exception as e:
+            logger.error(f"Error fetching external transcript for {video_id}: {e}")
+
+        return None
+
     async def fetch_video_data(self, video_id: str, use_webshare: bool = False, metadata_only: bool = False) -> str:
         """
         Fetch metadata (Title/Description) and optionally transcripts and comments.
@@ -68,23 +136,28 @@ class YouTubeService:
         # 1. Try Transcript (Skip if metadata_only)
         if not metadata_only:
             try:
-                try:
-                    # Try local first if not explicitly requested otherwise
-                    transcript_list = await _fetch_ytt(video_id, webshare=use_webshare)
-                except Exception as e:
-                    # Fallback to webshare if local fails and we haven't tried webshare yet
-                    if not use_webshare and ("IpBlocked" in type(e).__name__ or "ResponseError" in type(e).__name__):
-                        logger.info(f"Primary IP blocked for {video_id}. Falling back to Webshare...")
-                        transcript_list = await _fetch_ytt(video_id, webshare=True)
-                    else:
-                        raise e
-                
-                transcript_text = ""
-                for t in transcript_list:
-                    transcript_text = " ".join([x.text for x in t.fetch()])
-                    break
-                if transcript_text:
-                    data_parts.append(f"Transcript (truncated): {transcript_text[:5000]}...")
+                # First try Jay Paun external transcript API (with daily 24h caching)
+                ext_transcript = await self.fetch_external_transcript(video_id)
+                if ext_transcript:
+                    data_parts.append(f"Transcript (truncated): {ext_transcript[:5000]}...")
+                else:
+                    try:
+                        # Try local first if not explicitly requested otherwise
+                        transcript_list = await _fetch_ytt(video_id, webshare=use_webshare)
+                    except Exception as e:
+                        # Fallback to webshare if local fails and we haven't tried webshare yet
+                        if not use_webshare and ("IpBlocked" in type(e).__name__ or "ResponseError" in type(e).__name__):
+                            logger.info(f"Primary IP blocked for {video_id}. Falling back to Webshare...")
+                            transcript_list = await _fetch_ytt(video_id, webshare=True)
+                        else:
+                            raise e
+                    
+                    transcript_text = ""
+                    for t in transcript_list:
+                        transcript_text = " ".join([x.text for x in t.fetch()])
+                        break
+                    if transcript_text:
+                        data_parts.append(f"Transcript (truncated): {transcript_text[:5000]}...")
             except Exception as e:
                 error_type = type(e).__name__
                 if error_type in ["TranscriptsDisabled", "NoTranscriptFound"]:

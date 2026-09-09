@@ -109,10 +109,7 @@ class ContextReasoningService:
         """
 
         try:
-            original_source = ai_service.source
-            ai_service.source = "groq"
             response_text = await ai_service.generate_content(prompt, system_prompt="You are an expert travel aggregation AI. Answer strictly in JSON.")
-            ai_service.source = original_source
             
             # Robust JSON Extract
             clean_json = response_text
@@ -129,8 +126,10 @@ class ContextReasoningService:
             # (Basic attempt to fix minor LLM JSON flaws)
             try:
                 result = json.loads(clean_json)
-                # Cache for 6 hours
-                await cache_service.set_cache(cache_key, result, ttl=21600)
+                has_places = bool(result.get("places") or result.get("food") or result.get("attractions"))
+                if has_places:
+                    # Cache for 6 hours
+                    await cache_service.set_cache(cache_key, result, ttl=21600)
                 return result
             except json.JSONDecodeError as je:
                 logger.error(f"JSON Parse Error for {location}: {je}")
@@ -153,16 +152,12 @@ class ContextReasoningService:
 
     async def simple_extract(self, text: str, entity_type: str) -> List[str]:
         """
-        Use Ollama for simple extraction tasks to save cost.
+        Use AI service for simple extraction tasks.
         """
         prompt = f"Extract all {entity_type} from the following text as a comma-separated list:\n{text}"
         
         try:
-            original_source = ai_service.source
-            ai_service.source = "ollama"
             response_text = await ai_service.generate_content(prompt, system_prompt="You are a data extraction AI. Return only a comma-separated list.")
-            ai_service.source = original_source
-            
             return [x.strip() for x in response_text.split(",") if x.strip()]
         except Exception as e:
             logger.error(f"Simple extraction failed: {e}")

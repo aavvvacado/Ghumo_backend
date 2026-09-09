@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import logging
 import asyncio
+import json
 from app.api.schemas import (
     ItineraryRequest, SearchResponse, NearbyResponse, 
     ItineraryResponse, HiddenGemResponse, JobResponse, 
@@ -9,7 +11,7 @@ from app.api.schemas import (
     SyncResponse, TravelTipResponse, FeedbackRequest,
     SearchHistoryResponse, RecommendationResponse,
     ContributionRequest, ContributionResponse,
-    VideoItineraryRequest)
+    VideoItineraryRequest, SearchStreamRequest)
 from app.services.enrichment_service import enrichment_service
 from app.services.search_service import search_service
 from app.services.nearby_service import nearby_service
@@ -72,8 +74,8 @@ async def search(query: str):
                 # Check for intermediate results in cache
                 updated_results = await enrichment_service.get_fast_results(query)
                 
-                # If we have basic data (AI finished or OSM found something), return it
-                if (updated_results.get("places") or updated_results.get("food")) and not updated_results.get("enriching"):
+                # Return as soon as we have places/food OR enrichment finishes
+                if (updated_results.get("places") or updated_results.get("food")) or not updated_results.get("enriching"):
                     logger.info(f"Research complete for {query} after {attempt+1} attempts.")
                     return updated_results
                 
@@ -85,6 +87,61 @@ async def search(query: str):
 
     # 3. Return immediately for known places (sub-200ms)
     return results
+
+@router.post("/search/stream")
+@router.get("/search/stream")
+async def search_stream(request: Optional[SearchStreamRequest] = None, query: Optional[str] = None):
+    """
+    Server-Sent Events (SSE) streaming endpoint for search enrichment progress.
+    Accepts JSON body `{"query": "..."}` via POST or `?query=...` via GET.
+    """
+    search_query = (request.query if request else None) or query
+    if not search_query:
+        raise HTTPException(status_code=400, detail="Query parameter or body is required.")
+
+    async def event_generator():
+        yield f"event: progress\ndata: {json.dumps({'step': 'init', 'message': f'Starting intelligence search for {search_query}'})}\n\n"
+        await asyncio.sleep(0.2)
+
+        # 1. Fast cache check
+        results = await enrichment_service.get_fast_results(search_query)
+        if not results.get("enriching") and (results.get("places") or results.get("food")):
+            yield f"event: progress\ndata: {json.dumps({'step': 'cache_hit', 'message': 'Loaded from intelligence cache'})}\n\n"
+            yield f"event: complete\ndata: {json.dumps({'step': 'complete', 'data': results})}\n\n"
+            return
+
+        # 2. Trigger background enrichment
+        task_name = f"context_enrichment_{search_query}"
+        job_id = await job_manager.get_active_job_by_task(task_name)
+        if not job_id:
+            job_id = await job_manager.create_job(task_name)
+            lat = results.get("coordinates", {}).get("lat")
+            lng = results.get("coordinates", {}).get("lng")
+            context_enrichment_task.apply_async(args=[job_id, search_query, lat, lng], task_id=job_id)
+
+        yield f"event: progress\ndata: {json.dumps({'step': 'mining', 'message': 'Mining YouTube, Reddit, Blogs & OpenStreetMap POIs...', 'job_id': job_id})}\n\n"
+
+        # Poll cache until enrichment completes or max attempts reached
+        max_attempts = 40
+        for attempt in range(max_attempts):
+            await asyncio.sleep(1.5)
+            latest = await enrichment_service.get_fast_results(search_query)
+            
+            milestone = latest.get("milestone")
+            if milestone == "physical_scan_complete":
+                found_count = len(latest.get("places", []))
+                yield f"event: progress\ndata: {json.dumps({'step': 'osm_complete', 'message': f'Found {found_count} places via map scan. Synthesizing AI reasoning with Gemini...', 'data': latest})}\n\n"
+            else:
+                yield f"event: progress\ndata: {json.dumps({'step': 'researching', 'attempt': attempt+1, 'message': f'Researching... ({attempt+1}/{max_attempts})'})}\n\n"
+
+            if (latest.get("places") or latest.get("food")) and not latest.get("enriching"):
+                yield f"event: complete\ndata: {json.dumps({'step': 'complete', 'message': 'Research complete', 'data': latest})}\n\n"
+                return
+
+        final_res = await enrichment_service.get_fast_results(search_query)
+        yield f"event: complete\ndata: {json.dumps({'step': 'complete', 'message': 'Done', 'data': final_res})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.get("/search-status", response_model=SearchStatusResponse)
 async def get_search_status(id: str):
@@ -114,6 +171,29 @@ async def create_itinerary(request: ItineraryRequest):
         request.interests,
         request.budget
     )
+
+@router.post("/itinerary/stream")
+async def create_itinerary_stream(request: ItineraryRequest):
+    """
+    Server-Sent Events (SSE) streaming endpoint for itinerary generation.
+    Accepts JSON body `ItineraryRequest`.
+    """
+    async def event_generator():
+        yield f"event: progress\ndata: {json.dumps({'step': 'init', 'message': f'Initiating itinerary planner for {request.location}...'})}\n\n"
+        await asyncio.sleep(0.3)
+
+        yield f"event: progress\ndata: {json.dumps({'step': 'ai_generation', 'message': f'Generating personalized {request.time_available} travel plan with Gemini AI...'})}\n\n"
+
+        result = await itinerary_service.generate_itinerary(
+            request.location,
+            request.time_available,
+            request.interests,
+            request.budget
+        )
+
+        yield f"event: complete\ndata: {json.dumps({'step': 'complete', 'message': 'Itinerary successfully generated', 'data': result})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/itinerary/video", response_model=ItineraryResponse)
 async def create_video_itinerary(request: VideoItineraryRequest):

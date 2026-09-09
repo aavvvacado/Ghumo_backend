@@ -94,10 +94,7 @@ class SocialMining(BaseCrawler):
         """
 
         try:
-            original_source = ai_service.source
-            ai_service.source = "groq"
             response_text = await ai_service.generate_content(prompt, system_prompt="Answer in purely JSON.")
-            ai_service.source = original_source
             
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()

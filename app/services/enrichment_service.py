@@ -24,11 +24,6 @@ class EnrichmentService:
         # 1. Layer 1: Valkey Cache (Instant)
         cached = await cache_service.get_cache(f"search:{location_lower}")
         if cached:
-            # If the cached result is empty (no places), we check if we should re-enrich
-            # We also check if it's currently enriching
-            if not cached.get("places") and not cached.get("hidden_gems") and not cached.get("enriching"):
-                logger.info(f"Cached result for {normalized_location} is shallow. Signaling enrichment.")
-                cached["enriching"] = True
             return cached
 
         from app.database.session import SessionLocal
@@ -93,10 +88,25 @@ class EnrichmentService:
                     async with httpx.AsyncClient() as client:
                         res = await client.get(
                             "https://nominatim.openstreetmap.org/search",
-                            params={"q": q, "format": "json", "limit": 1},
+                            params={"q": q, "format": "json", "limit": 3, "countrycodes": "in"},
                             headers={"User-Agent": "GhumoTravelBot/1.0"}
                         )
-                        return res.json()
+                        data = res.json()
+                        if not data:
+                            res = await client.get(
+                                "https://nominatim.openstreetmap.org/search",
+                                params={"q": f"{q}, India", "format": "json", "limit": 3},
+                                headers={"User-Agent": "GhumoTravelBot/1.0"}
+                            )
+                            data = res.json()
+                        if not data:
+                            res = await client.get(
+                                "https://nominatim.openstreetmap.org/search",
+                                params={"q": q, "format": "json", "limit": 3},
+                                headers={"User-Agent": "GhumoTravelBot/1.0"}
+                            )
+                            data = res.json()
+                        return data
 
                 # Clean query
                 clean_q = normalized_location.replace("Phase", "").replace("Sector", "").strip()
@@ -258,8 +268,13 @@ class EnrichmentService:
             await knowledge_updater.sync_intelligence_to_db(location_lower, result, corpora)
 
             # 5. Update Cache
-            await cache_service.set_cache(f"search:{location_lower}", result, ttl=86400)
-            logger.info(f"Background enrichment completed successfully for {normalized_location}.")
+            has_data = bool(result.get("places") or result.get("food") or result.get("attractions") or result.get("hidden_gems"))
+            ttl = 86400 if has_data else 10
+            await cache_service.set_cache(f"search:{location_lower}", result, ttl=ttl)
+            if has_data:
+                logger.info(f"Background enrichment completed successfully for {normalized_location}.")
+            else:
+                logger.warning(f"Background enrichment yielded shallow data for {normalized_location}. Short cache TTL applied.")
             
             return result
 

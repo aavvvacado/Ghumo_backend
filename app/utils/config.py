@@ -12,13 +12,16 @@ class Settings(BaseSettings):
     # External APIs
     GOOGLE_PLACES_API_KEY: str = ""
     OPENTRIPMAP_API_KEY: str = ""
+    YOUTUBE_TRANSCRIPT_API_URL: str = ""
     
     # AI Config
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     AI_MODEL_NAME: str = "mistral"
-    AI_SOURCE: str = "groq"  # 'huggingface', 'ollama', or 'groq'
+    AI_SOURCE: str = "groq"  # 'huggingface', 'ollama', 'groq', or 'gemini'
     GROQ_API_KEY: str = ""
     GROQ_MODEL_NAME: str = "llama-3.3-70b-versatile"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_NAME: str = "gemini-3.6-flash"
 
     # Valkey Config
     VALKEY_URL: str = "redis://localhost:6379/0"

@@ -7,6 +7,9 @@ class ItineraryRequest(BaseModel):
     interests: List[str]
     budget: str
 
+class SearchStreamRequest(BaseModel):
+    query: str
+
 class VideoItineraryRequest(BaseModel):
     url: str
 

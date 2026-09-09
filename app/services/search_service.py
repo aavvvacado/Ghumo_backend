@@ -14,10 +14,33 @@ logger = logging.getLogger(__name__)
 class SearchService:
     async def normalize_geo_query(self, query: str) -> str:
         """
-        Normalize queries for better search accuracy.
-        Currently returns the query as-is, but can be extended for neighborhood-to-city mapping.
+        Normalize queries for better search accuracy and fix common typos.
         """
-        return query
+        if not query:
+            return query
+            
+        clean_q = query.strip()
+        q_lower = clean_q.lower()
+        
+        # Common spelling fixes for Indian travel queries
+        spelling_map = {
+            "cannaught": "connaught",
+            "cp delhi": "connaught place, delhi",
+            "chandni chawk": "chandni chowk",
+            "chandni chauk": "chandni chowk",
+            "gurgoan": "gurugram",
+            "gurgon": "gurugram",
+            "koramangla": "koramangala",
+            "indiranagr": "indiranagar",
+            "banglore": "bengaluru"
+        }
+        
+        for typo, fix in spelling_map.items():
+            if typo in q_lower:
+                q_lower = q_lower.replace(typo, fix)
+                return q_lower
+                
+        return clean_q
 
     async def search_all(self, location: str) -> Dict[str, Any]:
         """
@@ -67,10 +90,24 @@ class SearchService:
             async with httpx.AsyncClient() as client:
                 res = await client.get(
                     f"https://nominatim.openstreetmap.org/search",
-                    params={"q": search_query, "format": "json", "limit": 1},
+                    params={"q": search_query, "format": "json", "limit": 3, "countrycodes": "in"},
                     headers={"User-Agent": "GhumoTravelBot/1.0"}
                 )
                 data = res.json()
+                if not data:
+                    res = await client.get(
+                        f"https://nominatim.openstreetmap.org/search",
+                        params={"q": f"{search_query}, India", "format": "json", "limit": 3},
+                        headers={"User-Agent": "GhumoTravelBot/1.0"}
+                    )
+                    data = res.json()
+                if not data:
+                    res = await client.get(
+                        f"https://nominatim.openstreetmap.org/search",
+                        params={"q": search_query, "format": "json", "limit": 3},
+                        headers={"User-Agent": "GhumoTravelBot/1.0"}
+                    )
+                    data = res.json()
                 
                 # Fallback: if "bareilly rajendra nagar" fails, try "bareilly"
                 if not data and " " in search_query:

@@ -43,9 +43,37 @@ class AIService:
             logger.error(f"Ollama generation failed: {e}")
             return f"Error via Ollama: {str(e)}"
 
+    async def _generate_gemini(self, prompt: str, system_prompt: str) -> str:
+        """Internal helper for Gemini API generation."""
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL_NAME}:generateContent?key={settings.GEMINI_API_KEY}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}]
+            }
+            if system_prompt:
+                payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, json=payload, timeout=60.0)
+                if response.status_code != 200:
+                    raise Exception(f"Gemini API returned {response.status_code}: {response.text}")
+                res_data = response.json()
+                candidates = res_data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+                return ""
+        except Exception as e:
+            logger.error(f"Gemini generation failed: {e}")
+            return f"Error via Gemini: {str(e)}"
+
     async def generate_content(self, prompt: str, system_prompt: str = "You are a helpful travel assistant.") -> str:
         """Generic method to generate content using the selected AI source."""
-        if self.source == "groq" and self.groq_client:
+        if self.source == "gemini" and settings.GEMINI_API_KEY:
+            return await self._generate_gemini(prompt, system_prompt)
+
+        elif self.source == "groq" and self.groq_client:
             try:
                 completion = await self.groq_client.chat.completions.create(
                     model=settings.GROQ_MODEL_NAME,
