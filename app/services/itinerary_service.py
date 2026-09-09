@@ -42,12 +42,23 @@ class ItineraryService:
         # 4. Generate the itinerary
         itinerary_text = await ai_service.generate_content(prompt, system_prompt)
 
+        rec_places = (data.get("restaurants", []) + data.get("food", []) + data.get("markets", []))[:10]
+        rec_attractions = data.get("attractions", [])[:10]
+
+        all_rec_items = rec_places + rec_attractions
+        if all_rec_items:
+            from app.services.place_image_resolver import place_image_resolver
+            try:
+                await place_image_resolver.resolve_places_batch(all_rec_items, city=location, timeout=3.0)
+            except Exception as e:
+                logger.warning(f"Failed to resolve images for itinerary places: {e}")
+
         # 5. Return structured response
         return {
             "location": location,
             "itinerary": itinerary_text,
-            "recommended_places": (data.get("restaurants", []) + data.get("markets", []))[:10],
-            "recommended_attractions": data.get("attractions", [])[:10]
+            "recommended_places": rec_places,
+            "recommended_attractions": rec_attractions
         }
 
 itinerary_service = ItineraryService()

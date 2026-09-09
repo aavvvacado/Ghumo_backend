@@ -13,6 +13,11 @@ class SearchStreamRequest(BaseModel):
 class VideoItineraryRequest(BaseModel):
     url: str
 
+class ImageInfo(BaseModel):
+    url: Optional[str] = None
+    source: Optional[str] = None
+    attribution: Optional[str] = None
+
 class PlaceResponse(BaseModel):
     name: str
     type: str
@@ -20,6 +25,7 @@ class PlaceResponse(BaseModel):
     lng: float
     distance: Optional[float] = 0
     source: str
+    image: Optional[ImageInfo] = None
 
 class HiddenGemResponse(BaseModel):
     name: str

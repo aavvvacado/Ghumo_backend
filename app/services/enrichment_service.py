@@ -42,10 +42,17 @@ class EnrichmentService:
             # If no context, look for places directly in the DB that match the city
             recent_places = db.query(Place).filter(Place.city.ilike(f"%{location}%")).limit(20).all()
             if recent_places:
+                db_places = [{"name": p.name, "lat": p.lat, "lng": p.lng, "type": p.category, "source": "db"} for p in recent_places]
+                from app.services.place_image_resolver import place_image_resolver
+                try:
+                    await place_image_resolver.resolve_places_batch(db_places, city=normalized_location, timeout=2.0)
+                except Exception as img_err:
+                    logger.warning(f"Failed to resolve images for Layer 3 DB hit: {img_err}")
+
                 results = {
                     "location": normalized_location,
                     "coordinates": {"lat": recent_places[0].lat, "lng": recent_places[0].lng},
-                    "places": [{"name": p.name, "lat": p.lat, "lng": p.lng, "type": p.category, "source": "db"} for p in recent_places],
+                    "places": db_places,
                     "food": [], "markets": [], "attractions": [], "hidden_gems": [], "tips": [],
                     "enriching": True
                 }
@@ -249,15 +256,30 @@ class EnrichmentService:
                     deep_scraped_text=""
                 )
 
-            # 3. Output Preparation
+            # 3. Batch Image Resolution for all places
+            places_list = intelligence.get("places", [])
+            food_list = intelligence.get("food", [])
+            markets_list = intelligence.get("markets", [])
+            attractions_list = intelligence.get("attractions", [])
+            gems_list = intelligence.get("hidden_gems", [])
+
+            all_place_items = places_list + food_list + markets_list + attractions_list + gems_list
+            if all_place_items:
+                from app.services.place_image_resolver import place_image_resolver
+                try:
+                    await place_image_resolver.resolve_places_batch(all_place_items, city=normalized_location, timeout=3.0)
+                except Exception as img_err:
+                    logger.warning(f"Image batch resolution error in enrichment for {normalized_location}: {img_err}")
+
+            # Output Preparation
             result = {
                 "location": normalized_location,
                 "coordinates": {"lat": lat, "lng": lng} if lat and lng else {},
-                "places": intelligence.get("places", []),
-                "food": intelligence.get("food", []),
-                "markets": intelligence.get("markets", []),
-                "attractions": intelligence.get("attractions", []),
-                "hidden_gems": intelligence.get("hidden_gems", []),
+                "places": places_list,
+                "food": food_list,
+                "markets": markets_list,
+                "attractions": attractions_list,
+                "hidden_gems": gems_list,
                 "tips": intelligence.get("tips", []),
                 "enriching": False
             }

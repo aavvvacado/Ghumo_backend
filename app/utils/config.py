@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # External APIs
     GOOGLE_PLACES_API_KEY: str = ""
+    UNSPLASH_ACCESS_KEY: str = ""
     OPENTRIPMAP_API_KEY: str = ""
     YOUTUBE_TRANSCRIPT_API_URL: str = ""
     
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL_NAME: str = "llama-3.3-70b-versatile"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL_NAME: str = "gemini-3.6-flash"
+    GEMINI_MODEL_NAME: str = "gemini-3.5-flash"
 
     # Valkey Config
     VALKEY_URL: str = "redis://localhost:6379/0"

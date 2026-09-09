@@ -24,10 +24,11 @@ class SearchService:
         
         # Common spelling fixes for Indian travel queries
         spelling_map = {
-            "cannaught": "connaught",
+            "cannaught": "connaught place",
             "cp delhi": "connaught place, delhi",
-            "chandni chawk": "chandni chowk",
-            "chandni chauk": "chandni chowk",
+            "chandani": "chandni",
+            "chawk": "chowk",
+            "chauk": "chowk",
             "gurgoan": "gurugram",
             "gurgon": "gurugram",
             "koramangla": "koramangala",
@@ -38,9 +39,8 @@ class SearchService:
         for typo, fix in spelling_map.items():
             if typo in q_lower:
                 q_lower = q_lower.replace(typo, fix)
-                return q_lower
                 
-        return clean_q
+        return q_lower
 
     async def search_all(self, location: str) -> Dict[str, Any]:
         """

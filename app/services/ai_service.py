@@ -44,29 +44,46 @@ class AIService:
             return f"Error via Ollama: {str(e)}"
 
     async def _generate_gemini(self, prompt: str, system_prompt: str) -> str:
-        """Internal helper for Gemini API generation."""
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL_NAME}:generateContent?key={settings.GEMINI_API_KEY}"
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}]
-            }
-            if system_prompt:
-                payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        """Internal helper for Gemini API generation with multi-model fallback."""
+        candidate_models = [settings.GEMINI_MODEL_NAME, "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+        candidate_models = list(dict.fromkeys(candidate_models))
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, json=payload, timeout=60.0)
-                if response.status_code != 200:
-                    raise Exception(f"Gemini API returned {response.status_code}: {response.text}")
-                res_data = response.json()
-                candidates = res_data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "")
-                return ""
-        except Exception as e:
-            logger.error(f"Gemini generation failed: {e}")
-            return f"Error via Gemini: {str(e)}"
+        last_error = None
+        for model in candidate_models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.7,
+                        "maxOutputTokens": 8192
+                    }
+                }
+                if "JSON" in prompt or "json" in prompt.lower() or (system_prompt and "json" in system_prompt.lower()):
+                    payload["generationConfig"]["responseMimeType"] = "application/json"
+
+                if system_prompt:
+                    payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(url, json=payload, timeout=60.0)
+                    if response.status_code == 200:
+                        res_data = response.json()
+                        candidates = res_data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if parts:
+                                return parts[0].get("text", "")
+                        return ""
+                    else:
+                        logger.warning(f"Gemini model '{model}' returned status {response.status_code}. Retrying with fallback model...")
+                        last_error = f"Gemini API returned {response.status_code}: {response.text}"
+            except Exception as e:
+                logger.warning(f"Gemini model '{model}' exception: {e}. Retrying with fallback model...")
+                last_error = str(e)
+
+        logger.error(f"All Gemini models failed. Last error: {last_error}")
+        return f"Error via Gemini: {last_error}"
 
     async def generate_content(self, prompt: str, system_prompt: str = "You are a helpful travel assistant.") -> str:
         """Generic method to generate content using the selected AI source."""

@@ -21,7 +21,8 @@ class ContextReasoningService:
             return cached_result
 
         # 2. Prepare summary payload
-        osm_summary = "\n".join([f"- {p['name']} ({p.get('category', 'unknown')})" for p in osm_data[:100]])
+        safe_osm_data = osm_data or []
+        osm_summary = "\n".join([f"- {p.get('name', 'POI')} ({p.get('category', 'unknown')})" for p in safe_osm_data[:100] if isinstance(p, dict)])
         
         prompt = f"""
         You are an expert Indian tourism assistant. Your responsibilities include:
