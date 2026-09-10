@@ -73,6 +73,8 @@ class YouTubeService:
                         return transcript_text
                 else:
                     logger.warning(f"External transcript API returned status {res.status_code} for {video_id}")
+        except (httpx.ConnectError, httpx.RequestError) as net_err:
+            logger.warning(f"External transcript API unreachable for {video_id}: {net_err}")
         except Exception as e:
             logger.error(f"Error fetching external transcript for {video_id}: {e}")
 
@@ -170,11 +172,13 @@ class YouTubeService:
             try:
                 logger.info(f"Fetching comments for video {video_id}...")
                 comments_obj = Comments(video_id)
-                comment_results = comments_obj.comments.get('result', [])
-                if comment_results:
-                    extracted_comments = [f"- {c.get('content', '')}" for c in comment_results[:15] if c.get('content')]
-                    if extracted_comments:
-                        data_parts.append("Top Comments:\n" + "\n".join(extracted_comments))
+                comments_data = getattr(comments_obj, "comments", None)
+                if isinstance(comments_data, dict):
+                    comment_results = comments_data.get('result', [])
+                    if isinstance(comment_results, list) and comment_results:
+                        extracted_comments = [f"- {c.get('content', '')}" for c in comment_results[:15] if isinstance(c, dict) and c.get('content')]
+                        if extracted_comments:
+                            data_parts.append("Top Comments:\n" + "\n".join(extracted_comments))
             except Exception as comm_err:
                 logger.warning(f"Failed to fetch comments for {video_id}: {comm_err}")
 

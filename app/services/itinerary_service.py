@@ -1,64 +1,369 @@
+import json
+import logging
+import re
+from typing import Dict, Any, List, Optional
 from app.services.ai_service import ai_service
 from app.services.search_service import search_service
-import logging
+from app.services.place_image_resolver import place_image_resolver
 
 logger = logging.getLogger(__name__)
 
 class ItineraryService:
-    async def generate_itinerary(self, location: str, time_available: str, interests: list, budget: str):
-        # 1. Fetch data for the location
-        data = await search_service.search_all(location)
+    async def parse_user_intent(self, prompt: str, location: Optional[str] = None, 
+                                  time_available: Optional[str] = None, 
+                                  interests: Optional[List[str]] = None, 
+                                  budget: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Parses raw conversational text and fills in any missing constraints.
+        Produces standardized destination, duration, budget, mode, and interests.
+        """
+        user_input_raw = (prompt or "").strip()
         
-        # 2. Extract key details
-        attractions = [a["name"] for a in data.get("attractions", [])[:8]]
-        restaurants = [r["name"] for r in data.get("restaurants", [])[:5]]
-        markets = [m["name"] for m in data.get("markets", [])[:5]]
-        
-        # 3. Format a detailed prompt for Groq/AI
-        prompt = (
-            f"Create a detailed travel itinerary for {location}.\n"
-            f"Duration: {time_available}\n"
-            f"Interests: {', '.join(interests)}\n"
-            f"Budget Level: {budget}\n\n"
+        # If user gave explicit structured fields and no free-form prompt
+        if not user_input_raw and location:
+            loc = location.strip()
+            time_str = (time_available or "2 days").strip()
+            mode = "time_wise" if any(unit in time_str.lower() for unit in ["hour", "hr", "morning", "afternoon", "evening", "half day"]) else "day_wise"
+            return {
+                "destination": loc,
+                "duration": time_str,
+                "mode": mode,
+                "budget": (budget or "moderate").strip(),
+                "interests": interests or ["sightseeing", "local food", "culture"],
+                "stay_preference": "central and accessible neighborhood"
+            }
+
+        extraction_prompt = (
+            "You are an expert travel intent parser. Extract the travel details from the user's request.\n"
+            f"User Input: \"{user_input_raw}\"\n"
+            f"Provided location field (if any): \"{location or ''}\"\n"
+            f"Provided duration field (if any): \"{time_available or ''}\"\n"
+            f"Provided budget field (if any): \"{budget or ''}\"\n"
+            f"Provided interests (if any): \"{', '.join(interests or [])}\"\n\n"
+            "Return a clean JSON object with EXACTLY these keys:\n"
+            "- destination: (string, clean place or city name, e.g., 'Goa', 'Jaipur', 'Chandni Chowk, Delhi')\n"
+            "- duration: (string, e.g. '3 days', '2 days / 1 night', '6 hours', '1 day')\n"
+            "- mode: ('day_wise' if 1 or more days, 'time_wise' if less than 1 day or hourly/morning/evening)\n"
+            "- budget: (string, e.g. '10000 INR', 'budget / ₹2000 per day', 'moderate', 'luxury')\n"
+            "- interests: (list of strings, e.g. ['beaches', 'nightlife', 'seafood'])\n"
+            "- stay_preference: (string, recommended stay zone or type based on budget and vibe)\n\n"
+            "If any field is missing or unstated by the user, intelligently infer practical and vibrant defaults.\n"
+            "Output JSON ONLY without markdown wrapping or conversational commentary."
         )
-        
-        has_local_data = len(attractions) > 0 or len(restaurants) > 0 or len(markets) > 0
-        
-        if has_local_data:
-            prompt += "Please strongly prioritize using the provided exact places below:\n"
-            if attractions: prompt += f"Available Attractions to include: {', '.join(attractions)}\n"
-            if restaurants: prompt += f"Recommended Food/Dining: {', '.join(restaurants)}\n"
-            if markets: prompt += f"Shopping/Markets: {', '.join(markets)}\n\n"
-        else:
-            prompt += "No verified local database places found for this exact area. Please use your internal knowledge to suggest highly accurate, real-world, famous, and hidden locations in this specific area. Do not invent names.\n\n"
+
+        system_instruction = "You are a travel NLP parser. Always output valid raw JSON."
+        ai_raw = await ai_service.generate_content(extraction_prompt, system_instruction)
+
+        try:
+            cleaned = re.sub(r"^```json\s*", "", ai_raw.strip(), flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+            parsed = json.loads(cleaned)
             
-        prompt += (
-            "Format the response with a clear header for each day and use bullet points for activities. "
-            "Keep it vibrant and practical."
+            destination = parsed.get("destination") or location or "Incredible India"
+            duration = parsed.get("duration") or time_available or "2 days"
+            mode = parsed.get("mode") or ("time_wise" if any(u in duration.lower() for u in ["hour", "hr", "evening", "morning"]) else "day_wise")
+            parsed_budget = parsed.get("budget") or budget or "moderate"
+            parsed_interests = parsed.get("interests") or (interests if interests else ["sightseeing", "local food"])
+            stay_pref = parsed.get("stay_preference") or "central and vibrant area"
+
+            return {
+                "destination": destination,
+                "duration": duration,
+                "mode": mode,
+                "budget": parsed_budget,
+                "interests": parsed_interests,
+                "stay_preference": stay_pref
+            }
+        except Exception as e:
+            logger.warning(f"Failed to parse travel intent JSON: {e}. Falling back to default extraction.")
+            # Simple fallback
+            dest = location or user_input_raw.split("for")[0].replace("visiting", "").replace("iam", "").strip() or "Goa"
+            return {
+                "destination": dest,
+                "duration": time_available or "2 days",
+                "mode": "day_wise",
+                "budget": budget or "moderate",
+                "interests": interests or ["sightseeing", "culture"],
+                "stay_preference": "central area"
+            }
+
+    def _generate_markdown_table(self, plan_data: Dict[str, Any]) -> str:
+        """
+        Converts the structured plan data into a clean, standardized Markdown table.
+        """
+        mode = plan_data.get("mode", "day_wise")
+        lines = []
+        lines.append("| Timing / Slot | Place / Landmark | Duration | Purpose & Highlights | Estimated Cost |")
+        lines.append("| :--- | :--- | :--- | :--- | :--- |")
+
+        if mode == "day_wise" and plan_data.get("days"):
+            for day_chunk in plan_data["days"]:
+                day_num = day_chunk.get("day", 1)
+                day_title = day_chunk.get("title", f"Day {day_num}")
+                stay = day_chunk.get("stay_recommendation", "")
+                cost = day_chunk.get("estimated_day_cost", "")
+                header_info = f"**DAY {day_num}: {day_title}**"
+                if cost: header_info += f" (Est: {cost})"
+                if stay: header_info += f" | Stay: {stay}"
+                lines.append(f"| {header_info} | | | | |")
+                
+                for act in day_chunk.get("activities", []):
+                    slot = act.get("time_slot", "Daytime")
+                    place = act.get("place", "Featured Attraction")
+                    dur = act.get("duration", "2 hrs")
+                    purpose = act.get("purpose", "Explore & Enjoy")
+                    act_cost = act.get("cost_estimate", "Free")
+                    lines.append(f"| {slot} | **{place}** | {dur} | {purpose} | {act_cost} |")
+        elif plan_data.get("time_slots"):
+            for slot_chunk in plan_data["time_slots"]:
+                slot_name = slot_chunk.get("slot", "Time Slot")
+                t_range = slot_chunk.get("time_range", "")
+                slot_label = f"**{slot_name}**"
+                if t_range: slot_label += f" ({t_range})"
+                lines.append(f"| {slot_label} | | | | |")
+
+                for act in slot_chunk.get("activities", []):
+                    slot = act.get("time_slot", slot_name)
+                    place = act.get("place", "Featured Attraction")
+                    dur = act.get("duration", "1.5 hrs")
+                    purpose = act.get("purpose", "Highlights & Sightseeing")
+                    act_cost = act.get("cost_estimate", "Free")
+                    lines.append(f"| {slot} | **{place}** | {dur} | {purpose} | {act_cost} |")
+
+        return "\n".join(lines)
+
+    async def generate_itinerary(self, location: Optional[str] = None, 
+                                 time_available: Optional[str] = None, 
+                                 interests: Optional[list] = None, 
+                                 budget: Optional[str] = None,
+                                 prompt: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Generates a rich, chunked (day-wise or time-wise), and standardized travel itinerary
+        supporting free-form text or structured input with real image resolution.
+        """
+        # 1. Parse intent & extract structured constraints
+        intent = await self.parse_user_intent(
+            prompt=prompt,
+            location=location,
+            time_available=time_available,
+            interests=interests,
+            budget=budget
         )
-        
-        system_prompt = "You are a world-class travel planner. Create highly engaging and efficient itineraries."
+        dest = intent["destination"]
+        duration = intent["duration"]
+        mode = intent["mode"]
+        plan_budget = intent["budget"]
+        interests_list = intent["interests"]
+        stay_pref = intent["stay_preference"]
 
-        # 4. Generate the itinerary
-        itinerary_text = await ai_service.generate_content(prompt, system_prompt)
+        # 2. Query verified places from local database and OpenStreetMap
+        data = await search_service.search_all(dest)
+        attractions = [a["name"] for a in data.get("attractions", [])[:10]]
+        restaurants = [r["name"] for r in data.get("restaurants", [])[:8]]
+        markets = [m["name"] for m in data.get("markets", [])[:6]]
+        has_local_data = len(attractions) > 0 or len(restaurants) > 0 or len(markets) > 0
 
+        # 3. Construct structured AI prompt
+        prompt_instructions = (
+            f"You are the world's best travel planner. Create an extraordinary, highly optimized travel plan for {dest}.\n"
+            f"Target Duration: {duration}\n"
+            f"Itinerary Segregation Mode: '{mode}' ('day_wise' for multi-day trips with Day 1, Day 2; 'time_wise' for short same-day trips with Morning, Afternoon, Evening)\n"
+            f"Budget: {plan_budget}\n"
+            f"Interests & Vibe: {', '.join(interests_list)}\n"
+            f"Stay Preference: {stay_pref}\n\n"
+        )
+
+        if has_local_data:
+            prompt_instructions += "Prioritize these verified local landmarks and spots:\n"
+            if attractions: prompt_instructions += f"- Attractions: {', '.join(attractions)}\n"
+            if restaurants: prompt_instructions += f"- Dining/Food: {', '.join(restaurants)}\n"
+            if markets: prompt_instructions += f"- Markets/Shopping: {', '.join(markets)}\n\n"
+        else:
+            prompt_instructions += (
+                "Verified local database places are sparse for this exact location. Use your expert real-world knowledge "
+                "to recommend genuine, highly praised, accurate landmarks, authentic eateries, and hidden gems. "
+                "Never invent fictitious names.\n\n"
+            )
+
+        json_format_template = """
+Return ONLY a valid JSON object matching this EXACT schema:
+{
+  "summary": "Captivating 2-3 sentence overview of this curated trip",
+  "destination": "Location Name",
+  "total_duration": "Duration (e.g. 3 Days / 2 Nights or 6 Hours)",
+  "estimated_total_budget": "Estimated total cost (e.g. ₹9,500)",
+  "stay_area": "Recommended neighborhood/area for stay and why",
+  "budget_breakdown": {
+    "stay": "Estimated accommodation expense",
+    "food": "Estimated dining & street food expense",
+    "activities": "Entry tickets & experience expenses",
+    "transport": "Local cabs, metro, autos expense"
+  },
+  "days": [
+    {
+      "day": 1,
+      "title": "Day Theme/Highlight",
+      "stay_recommendation": "Neighborhood or hotel recommendation",
+      "estimated_day_cost": "Estimated cost for this day",
+      "activities": [
+        {
+          "time_slot": "09:00 AM - 11:30 AM",
+          "place": "Real Landmark Name",
+          "duration": "2.5 hours",
+          "purpose": "Why visit, vibe, what to see/photograph",
+          "cost_estimate": "Entry fee or ₹0 if free",
+          "notes": "Insider tip (best viewpoint, avoiding crowds, local snack)"
+        }
+      ]
+    }
+  ],
+  "time_slots": [
+    {
+      "slot": "Morning",
+      "time_range": "09:00 AM - 12:30 PM",
+      "activities": [
+        {
+          "time_slot": "09:00 AM - 10:30 AM",
+          "place": "Real Landmark Name",
+          "duration": "1.5 hours",
+          "purpose": "Activity highlight and purpose",
+          "cost_estimate": "Free",
+          "notes": "Practical tip"
+        }
+      ]
+    }
+  ]
+}
+Note: If mode is 'day_wise', provide the 'days' array and set 'time_slots' to null. If mode is 'time_wise', provide the 'time_slots' array and set 'days' to null.
+"""
+        full_generation_prompt = prompt_instructions + json_format_template
+        system_prompt = "You are a master travel curator. Always produce clean, valid, detailed JSON travel itineraries."
+
+        ai_response_text = await ai_service.generate_content(full_generation_prompt, system_prompt)
+
+        # 4. Parse JSON plan data
+        plan_dict: Dict[str, Any] = {}
+        try:
+            clean_json = re.sub(r"^```json\s*", "", ai_response_text.strip(), flags=re.IGNORECASE)
+            clean_json = re.sub(r"\s*```$", "", clean_json.strip())
+            plan_dict = json.loads(clean_json)
+        except Exception as e:
+            logger.warning(f"Could not parse structured JSON itinerary: {e}. Generating structured fallback.")
+            # Graceful fallback structure
+            plan_dict = {
+                "summary": f"A delightful {duration} journey discovering the finest highlights of {dest}.",
+                "destination": dest,
+                "total_duration": duration,
+                "estimated_total_budget": plan_budget,
+                "stay_area": stay_pref,
+                "budget_breakdown": {
+                    "stay": "40% of budget",
+                    "food": "30% of budget",
+                    "activities": "15% of budget",
+                    "transport": "15% of budget"
+                },
+                "days": [
+                    {
+                        "day": 1,
+                        "title": f"Explore {dest} Highlights",
+                        "stay_recommendation": stay_pref,
+                        "estimated_day_cost": plan_budget,
+                        "activities": [
+                            {
+                                "time_slot": "Morning",
+                                "place": attractions[0] if attractions else f"{dest} Heritage Center",
+                                "duration": "2.5 hours",
+                                "purpose": "Iconic sightseeing and architectural photography",
+                                "cost_estimate": "Free / Nominal",
+                                "notes": "Start early to enjoy the morning light"
+                            },
+                            {
+                                "time_slot": "Afternoon",
+                                "place": restaurants[0] if restaurants else f"Famous Local Eatery in {dest}",
+                                "duration": "1.5 hours",
+                                "purpose": "Authentic regional culinary experience",
+                                "cost_estimate": "Moderate",
+                                "notes": "Ask for chef specials"
+                            }
+                        ]
+                    }
+                ]
+            }
+
+        plan_dict["mode"] = mode
+        if not plan_dict.get("destination"):
+            plan_dict["destination"] = dest
+
+        # 5. Extract all unique place names across the plan for Image Resolution
+        places_to_resolve = []
+        if mode == "day_wise" and plan_dict.get("days"):
+            for day in plan_dict["days"]:
+                for act in day.get("activities", []):
+                    p_name = act.get("place")
+                    if p_name and p_name not in [p["name"] for p in places_to_resolve]:
+                        places_to_resolve.append({"name": p_name, "city": dest})
+        elif plan_dict.get("time_slots"):
+            for slot in plan_dict["time_slots"]:
+                for act in slot.get("activities", []):
+                    p_name = act.get("place")
+                    if p_name and p_name not in [p["name"] for p in places_to_resolve]:
+                        places_to_resolve.append({"name": p_name, "city": dest})
+
+        # Concurrent image resolution
+        if places_to_resolve:
+            try:
+                await place_image_resolver.resolve_places_batch(places_to_resolve, city=dest, timeout=4.0)
+                # Map resolved images back to activities
+                image_map = {p["name"]: p.get("image") for p in places_to_resolve if p.get("image")}
+                
+                if mode == "day_wise" and plan_dict.get("days"):
+                    for day in plan_dict["days"]:
+                        for act in day.get("activities", []):
+                            if act.get("place") in image_map:
+                                act["image"] = image_map[act["place"]]
+                elif plan_dict.get("time_slots"):
+                    for slot in plan_dict["time_slots"]:
+                        for act in slot.get("activities", []):
+                            if act.get("place") in image_map:
+                                act["image"] = image_map[act["place"]]
+            except Exception as e:
+                logger.warning(f"Error resolving place images for itinerary: {e}")
+
+        # 6. Generate rich standardized Markdown Table
+        markdown_table = self._generate_markdown_table(plan_dict)
+        plan_dict["markdown_table"] = markdown_table
+
+        # 7. Construct rich human-readable markdown for legacy / text clients
+        prose_markdown = (
+            f"# Curated Itinerary: {plan_dict.get('destination', dest)}\n\n"
+            f"**Total Duration**: {plan_dict.get('total_duration', duration)} | "
+            f"**Estimated Budget**: {plan_dict.get('estimated_total_budget', plan_budget)}\n"
+            f"**Recommended Stay Zone**: {plan_dict.get('stay_area', stay_pref)}\n\n"
+            f"### Trip Summary\n{plan_dict.get('summary', '')}\n\n"
+            f"### Schedule & Activity Timeline\n\n{markdown_table}\n\n"
+            f"### Estimated Budget Allocation\n"
+        )
+        if plan_dict.get("budget_breakdown"):
+            for cat, amount in plan_dict["budget_breakdown"].items():
+                prose_markdown += f"- **{cat.capitalize()}**: {amount}\n"
+
+        # 8. Assemble recommended POI cards
         rec_places = (data.get("restaurants", []) + data.get("food", []) + data.get("markets", []))[:10]
         rec_attractions = data.get("attractions", [])[:10]
-
         all_rec_items = rec_places + rec_attractions
         if all_rec_items:
-            from app.services.place_image_resolver import place_image_resolver
             try:
-                await place_image_resolver.resolve_places_batch(all_rec_items, city=location, timeout=3.0)
+                await place_image_resolver.resolve_places_batch(all_rec_items, city=dest, timeout=2.5)
             except Exception as e:
-                logger.warning(f"Failed to resolve images for itinerary places: {e}")
+                logger.debug(f"Failed resolving recommendation POI images: {e}")
 
-        # 5. Return structured response
         return {
-            "location": location,
-            "itinerary": itinerary_text,
+            "location": dest,
+            "itinerary": prose_markdown,
             "recommended_places": rec_places,
-            "recommended_attractions": rec_attractions
+            "recommended_attractions": rec_attractions,
+            "plan": plan_dict,
+            "parsed_requirements": intent
         }
 
 itinerary_service = ItineraryService()

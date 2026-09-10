@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 from app.utils.errors import global_exception_handler, AppError, app_error_handler
 
 from contextlib import asynccontextmanager
-from app.database.session import engine
+from app.database.session import engine, sync_db_sequences
 from app.database.models import Base
 from app.services.cache_service import cache_service
 
@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
     # Create tables on startup
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
+    sync_db_sequences()
     
     # Initialize Redis (Optional)
     logger.info("Connecting to Redis...")

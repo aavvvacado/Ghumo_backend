@@ -168,29 +168,37 @@ async def get_place(id: str):
 @router.post("/itinerary", response_model=ItineraryResponse)
 async def create_itinerary(request: ItineraryRequest):
     return await itinerary_service.generate_itinerary(
-        request.location,
-        request.time_available,
-        request.interests,
-        request.budget
+        location=request.location,
+        time_available=request.time_available,
+        interests=request.interests,
+        budget=request.budget,
+        prompt=request.prompt
     )
 
 @router.post("/itinerary/stream")
 async def create_itinerary_stream(request: ItineraryRequest):
     """
     Server-Sent Events (SSE) streaming endpoint for itinerary generation.
-    Accepts JSON body `ItineraryRequest`.
+    Accepts JSON body `ItineraryRequest` with optional prompt or structured inputs.
     """
+    display_target = request.location or (request.prompt[:30] + "..." if request.prompt else "your destination")
+
     async def event_generator():
-        yield f"event: progress\ndata: {json.dumps({'step': 'init', 'message': f'Initiating itinerary planner for {request.location}...'})}\n\n"
+        yield f"event: progress\ndata: {json.dumps({'step': 'init', 'message': f'Initiating itinerary planner for {display_target}...'})}\n\n"
         await asyncio.sleep(0.3)
 
-        yield f"event: progress\ndata: {json.dumps({'step': 'ai_generation', 'message': f'Generating personalized {request.time_available} travel plan with Gemini AI...'})}\n\n"
+        if request.prompt and not request.location:
+            yield f"event: progress\ndata: {json.dumps({'step': 'intent_parsing', 'message': 'Parsing natural language travel prompt and extracting trip requirements...'})}\n\n"
+            await asyncio.sleep(0.2)
+
+        yield f"event: progress\ndata: {json.dumps({'step': 'ai_generation', 'message': f'Generating intelligent chunked travel plan with Gemini AI...'})}\n\n"
 
         result = await itinerary_service.generate_itinerary(
-            request.location,
-            request.time_available,
-            request.interests,
-            request.budget
+            location=request.location,
+            time_available=request.time_available,
+            interests=request.interests,
+            budget=request.budget,
+            prompt=request.prompt
         )
 
         yield f"event: complete\ndata: {json.dumps({'step': 'complete', 'message': 'Itinerary successfully generated', 'data': result})}\n\n"

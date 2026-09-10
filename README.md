@@ -41,6 +41,23 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 
 - **Seamless API Integration**: Exposes a backward-compatible `feedback` object (`averageRating`, `ratingCount`, `weightedScore`) on place responses.
 
+### 5. Intelligent Chunked AI Itinerary Planner
+- **Conversational Natural Language Parsing**: Accepts free-form travel requests (e.g. *"visiting Goa for 3 days with a 10000 budget"*) or structured fields. Smart Gemini NLP infers practical defaults for omitted constraints.
+- **Dynamic Segregation Modes**:
+  - `day_wise`: Multi-day plans chunked into `Day 1`, `Day 2` with daily themes, stay recommendations, and estimated day costs.
+  - `time_wise`: Same-day/hourly plans segregated into `Morning`, `Afternoon`, `Evening`, and `Night`.
+- **Pre-formatted Markdown Tables & Budget Breakdown**: Generates clean Markdown tables ready for mobile/web app display with complete cost breakdowns (`stay`, `food`, `activities`, `transport`).
+- **Real Image Resolution**: Resolves verified images for all itinerary landmarks via Wikimedia Commons and Unsplash.
+
+### 6. Multi-Source Intelligence Engine
+Ghumo gathers and cross-references data from 6 concurrent sources:
+1. **Nominatim (OpenStreetMap) & OpenTripMap**: GPS geocoding and bounding boxes.
+2. **Overpass API (OSM)**: Physical ground-truth verification of landmarks, markets, and cafes.
+3. **Reddit Discussions**: Real traveler sentiment, warnings, and local tips via search fallbacks.
+4. **YouTube Data & Transcripts**: Vlogger insights, video summaries, and community comments.
+5. **Cloudflare Browser Rendering**: Anti-bot resilient web crawling for official tourism pricing and schedules.
+6. **Place Image Resolver**: High-resolution CC licensed photography.
+
 ---
 
 ## API Reference Overview
@@ -51,8 +68,8 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 | `/search/stream` | `GET/POST` | SSE real-time streaming endpoint for search progress |
 | `/suggestions` | `GET` | Hot/trending places with verified image URLs & ratings |
 | `/target-feedback` | `POST` | Submit or update 1-5 star user ratings for places/itineraries |
-| `/itinerary` | `POST` | Day-by-day AI travel itinerary generator |
-| `/itinerary/stream` | `POST` | SSE streaming endpoint for itinerary generation |
+| `/itinerary` | `POST` | Conversational NLP & chunked AI travel itinerary generator |
+| `/itinerary/stream` | `POST` | SSE streaming endpoint for conversational itinerary generation |
 | `/itinerary/video` | `POST` | Extracts places & itineraries from YouTube video URLs |
 | `/nearby` | `GET` | Radius-based geographic place search (`lat`, `lng`, `radius`) |
 | `/hidden-gems` | `GET` | Offbeat place recommendations |

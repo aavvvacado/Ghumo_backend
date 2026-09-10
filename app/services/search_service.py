@@ -62,9 +62,13 @@ class SearchService:
         from app.database.models import AIContext, SearchHistory
         db = SessionLocal()
         try:
-            # Record search history
-            db.add(SearchHistory(query=normalized_location))
-            db.commit()
+            # Record search history safely (non-blocking for main search flow)
+            try:
+                db.add(SearchHistory(query=normalized_location))
+                db.commit()
+            except Exception as hist_err:
+                db.rollback()
+                logger.warning(f"Could not record search history for {normalized_location}: {hist_err}")
 
             # Check persistent AI context
             existing_context = db.query(AIContext).filter(AIContext.query == location_lower).first()

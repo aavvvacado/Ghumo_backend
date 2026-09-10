@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 from app.services.youtube_service import youtube_service
@@ -8,6 +9,7 @@ from app.services.cache_service import cache_service
 @pytest.mark.asyncio
 async def test_fetch_external_transcript_caching():
     video_id = "test_vid_123"
+    mock_transcript = "This is a full video transcript of the travel vlog."
     today_str = datetime.utcnow().strftime("%Y-%m-%d")
     cache_key = f"yt_transcript:{video_id}:{today_str}"
 

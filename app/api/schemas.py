@@ -1,11 +1,52 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Optional, Any
 
+class ItineraryActivityItem(BaseModel):
+    time_slot: Optional[str] = "Morning"  # e.g., "09:00 AM - 11:30 AM" or "Morning"
+    place: str
+    duration: Optional[str] = "2 hours"
+    purpose: Optional[str] = "Sightseeing and photography"
+    cost_estimate: Optional[str] = "Free"
+    notes: Optional[str] = None
+    image: Optional[dict] = None
+
+class ItineraryDayChunk(BaseModel):
+    day: int  # 1, 2, 3...
+    title: Optional[str] = "Exploration & Sightseeing"
+    stay_recommendation: Optional[str] = None  # Neighborhood or hotel type
+    estimated_day_cost: Optional[str] = None
+    activities: List[ItineraryActivityItem] = []
+
+class ItineraryTimeChunk(BaseModel):
+    slot: str  # "Morning", "Afternoon", "Evening", "Night"
+    time_range: Optional[str] = None  # e.g. "09:00 AM - 12:30 PM"
+    activities: List[ItineraryActivityItem] = []
+
+class StructuredItineraryPlan(BaseModel):
+    mode: str = "day_wise"  # "day_wise" or "time_wise"
+    destination: str
+    total_duration: str
+    estimated_total_budget: str
+    stay_area: Optional[str] = None
+    summary: Optional[str] = None
+    budget_breakdown: Optional[dict] = None  # { "stay": "...", "food": "...", "activities": "...", "transport": "..." }
+    days: Optional[List[ItineraryDayChunk]] = None
+    time_slots: Optional[List[ItineraryTimeChunk]] = None
+    markdown_table: Optional[str] = None
+
 class ItineraryRequest(BaseModel):
-    location: str
-    time_available: str
-    interests: List[str]
-    budget: str
+    prompt: Optional[str] = None  # Raw conversational text e.g. "visiting Jaipur for 2 days on low budget"
+    location: Optional[str] = None
+    time_available: Optional[str] = None
+    interests: Optional[List[str]] = []
+    budget: Optional[str] = None
+
+    @validator("location", always=True)
+    def validate_inputs(cls, v, values):
+        # Must have either prompt or location
+        if not v and not values.get("prompt"):
+            raise ValueError("Either 'prompt' or 'location' must be provided.")
+        return v
 
 class SearchStreamRequest(BaseModel):
     query: str
@@ -75,8 +116,10 @@ class NearbyResponse(BaseModel):
 class ItineraryResponse(BaseModel):
     location: str
     itinerary: str
-    recommended_places: List[Any]
-    recommended_attractions: List[Any]
+    recommended_places: List[Any] = []
+    recommended_attractions: List[Any] = []
+    plan: Optional[StructuredItineraryPlan] = None
+    parsed_requirements: Optional[dict] = None
 
 class HealthResponse(BaseModel):
     status: str
