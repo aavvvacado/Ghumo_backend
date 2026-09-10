@@ -4,13 +4,13 @@ title: System Architecture & Async Workflow
 nav_order: 1
 ---
 
-# 🏗️ System Architecture & Async Workflow
+# System Architecture & Async Workflow
 
 This document provides a deep technical breakdown of the **Ghumo Backend** architecture, highlighting data persistence, caching mechanisms, background workers, and real-time streaming engines.
 
 ---
 
-## 📐 High-Level Architecture Diagram
+## High-Level Architecture Diagram
 
 ```
                        ┌─────────────────────────┐
@@ -51,7 +51,7 @@ This document provides a deep technical breakdown of the **Ghumo Backend** archi
 
 ---
 
-## 🔄 Search & Discovery Workflow
+## Search & Discovery Workflow
 
 When a user searches for a destination (e.g., `chandni chowk delhi`), the backend processes the request using a **3-Tier Execution Pipeline**:
 
@@ -82,7 +82,7 @@ When a user searches for a destination (e.g., `chandni chowk delhi`), the backen
 
 ---
 
-## ⚡ Selective Hot-Cache Promotion Strategy
+## Selective Hot-Cache Promotion Strategy
 
 Unlike traditional caching strategies that store every user request in Redis regardless of frequency, Ghumo implements **Selective Hot-Cache Promotion**:
 
@@ -98,7 +98,7 @@ Unlike traditional caching strategies that store every user request in Redis reg
 
 ---
 
-## 👷 Celery Background Workers
+## Celery Background Workers
 
 Background context enrichment tasks are handled by **Celery** backed by Redis:
 
@@ -113,7 +113,3 @@ Background context enrichment tasks are handled by **Celery** backed by Redis:
       # 3. Quality filter & place image resolution
       # 4. Save to PostgreSQL & update job status to COMPLETED
   ```
-
----
-
-*Next Chapter: [Complete API Reference →](api-reference.html)*

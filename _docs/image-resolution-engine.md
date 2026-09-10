@@ -4,13 +4,13 @@ title: Image Resolution Engine
 nav_order: 4
 ---
 
-# 🖼️ Zero-Hallucination Image Resolution Engine
+# Zero-Hallucination Image Resolution Engine
 
 The **`PlaceImageResolver`** service provides real, place-specific image URLs for search results, place suggestions, and travel itineraries.
 
 ---
 
-## 🚫 Zero-Hallucination Policy
+## Zero-Hallucination Policy
 
 Traditional LLM applications often attempt to guess or synthesize image URLs (e.g. `https://example.com/red_fort.jpg`), leading to broken images and 404 errors. 
 
@@ -20,7 +20,7 @@ Traditional LLM applications often attempt to guess or synthesize image URLs (e.
 
 ---
 
-## ⛓️ Provider Fallback Pipeline
+## Provider Fallback Pipeline
 
 When resolving an image for a place (e.g., `Anangpur Dam`, city `Faridabad`), `PlaceImageResolver` executes providers in strict priority order:
 
@@ -55,7 +55,7 @@ When resolving an image for a place (e.g., `Anangpur Dam`, city `Faridabad`), `P
 
 ---
 
-## ⏱️ Caching Policy & TTL
+## Caching Policy & TTL
 
 To prevent unnecessary API requests:
 - **Valid Resolved Image**: Cached in Valkey for **7 days** (`604,800s`).
@@ -69,14 +69,10 @@ await cache_service.set_cache(cache_key, {"image": image_result}, ttl=ttl)
 
 ---
 
-## ⚡ Batch Concurrent Resolution
+## Batch Concurrent Resolution
 
 When enriching place lists in `/search`, `/suggestions`, or `/itinerary`, `resolve_places_batch` processes items asynchronously with a configurable timeout (default 4.0s):
 
 ```python
 await place_image_resolver.resolve_places_batch(places_list, timeout=4.0)
 ```
-
----
-
-*Next Chapter: [Community Ratings & Feedback Loop →](community-feedback.html)*

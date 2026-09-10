@@ -4,13 +4,13 @@ title: Database Schema & Indexing Guide
 nav_order: 6
 ---
 
-# 🗄️ Database Schema & Indexing Guide
+# Database Schema & Indexing Guide
 
 Ghumo Backend uses **Supabase PostgreSQL** as its primary persistent database.
 
 ---
 
-## 📊 Database Models & Entity Schema
+## Database Models & Entity Schema
 
 ```
                      ┌──────────────────┐
@@ -41,7 +41,7 @@ Ghumo Backend uses **Supabase PostgreSQL** as its primary persistent database.
 
 ---
 
-## 📋 Table Definitions
+## Table Definitions
 
 ### 1. `places` Table
 Stores physical locations, attractions, food joints, and markets.
@@ -86,7 +86,7 @@ Stores community ratings (1–5 stars) per user/target.
 
 ---
 
-## ⚡ Indexing Strategy
+## Indexing Strategy
 
 ```sql
 -- Composite index for fast normalized name + city queries
@@ -98,7 +98,3 @@ CREATE INDEX IF NOT EXISTS idx_place_norm_name ON places (normalized_name);
 -- Target feedback lookup index
 CREATE INDEX IF NOT EXISTS idx_feedback_target ON target_feedback (target_type, target_id);
 ```
-
----
-
-*Next Chapter: [Getting Started & Developer Guide →](getting-started.html)*

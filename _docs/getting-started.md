@@ -4,13 +4,13 @@ title: Getting Started & Developer Guide
 nav_order: 7
 ---
 
-# 🚀 Getting Started & Developer Guide
+# Getting Started & Developer Guide
 
 This guide walks you through setting up **Ghumo Backend** locally for development and testing.
 
 ---
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 Ensure you have the following installed on your machine:
 - **Python 3.11+**
@@ -20,7 +20,7 @@ Ensure you have the following installed on your machine:
 
 ---
 
-## 📥 1. Installation
+## 1. Installation
 
 ```bash
 # Clone the repository
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ---
 
-## ⚙️ 2. Environment Configuration (`.env`)
+## 2. Environment Configuration (`.env`)
 
 Create a `.env` file in the root directory:
 
@@ -64,7 +64,7 @@ MIN_FEEDBACK_COUNT=5
 
 ---
 
-## 🏃 3. Running Services Locally
+## 3. Running Services Locally
 
 ### A. Run FastAPI Server
 ```bash
@@ -80,7 +80,7 @@ celery -A app.celery_app worker --loglevel=info --pool=solo
 
 ---
 
-## 🧪 4. Running Unit Tests
+## 4. Running Unit Tests
 
 Run the full pytest suite:
 
@@ -92,7 +92,3 @@ $env:PYTHONPATH="."; .\venv\Scripts\pytest
 # Linux / macOS:
 PYTHONPATH=. pytest
 ```
-
----
-
-*Return to: [Home Overview & Table of Contents →](/Ghumo_backend/)*

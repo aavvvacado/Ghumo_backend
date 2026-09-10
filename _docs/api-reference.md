@@ -4,13 +4,13 @@ title: Complete API Reference
 nav_order: 2
 ---
 
-# 🔌 Complete API Reference
+# Complete API Reference
 
 This document details all available HTTP endpoints in the **Ghumo Backend API**, including request parameters, response schemas, and curl examples.
 
 ---
 
-## 📋 Endpoint Summary Table
+## Endpoint Summary Table
 
 | Path | Method | Description | Response Model |
 | :--- | :--- | :--- | :--- |
@@ -209,7 +209,3 @@ System health check endpoint verifying live status of Supabase PostgreSQL and Va
   "valkey": "ok"
 }
 ```
-
----
-
-*Next Chapter: [Place Quality Validator →](place-quality-validator.html)*

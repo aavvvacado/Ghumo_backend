@@ -4,13 +4,13 @@ title: Place Quality Validator
 nav_order: 3
 ---
 
-# 🛡️ Place Quality Validator
+# Place Quality Validator
 
 The **`PlaceQualityValidator`** service is a dedicated quality gate designed to prevent corrupt, empty, or generic placeholders from entering the database, Valkey hot cache, or API responses.
 
 ---
 
-## 🎯 Validation Rules & Criteria
+## Validation Rules & Criteria
 
 Every place item (from OpenStreetMap, Google Places, AI context, or raw web scrapes) must pass the following validation pipeline:
 
@@ -35,7 +35,7 @@ Every place item (from OpenStreetMap, Google Places, AI context, or raw web scra
 
 ---
 
-## 🚫 Generic Placeholder Filter (`GENERIC_NAMES`)
+## Generic Placeholder Filter (`GENERIC_NAMES`)
 
 Items with names matching any of the following case-insensitive strings are immediately rejected:
 
@@ -55,7 +55,7 @@ GENERIC_NAMES = {
 
 ---
 
-## 🔤 Canonical Place Name Normalization
+## Canonical Place Name Normalization
 
 To enforce place deduplication across PostgreSQL and Valkey, `normalize_place_name` transforms place strings into canonical keys:
 
@@ -83,14 +83,10 @@ def normalize_place_name(cls, name: str) -> str:
 
 ---
 
-## 🧪 Unit Tests
+## Unit Tests
 
 Quality validator logic is covered by unit tests in [`tests/test_place_quality_validator.py`](file:///c:/Users/ashki/OneDrive/Documents/Ghumo/ghumo_backend/tests/test_place_quality_validator.py):
 
 ```bash
 python -m pytest tests/test_place_quality_validator.py
 ```
-
----
-
-*Next Chapter: [Zero-Hallucination Image Resolution Engine →](image-resolution-engine.html)*

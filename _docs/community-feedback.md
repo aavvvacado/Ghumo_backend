@@ -4,13 +4,13 @@ title: Community Ratings & Feedback Loop
 nav_order: 5
 ---
 
-# ⭐ Community Ratings & Feedback Loop
+# Community Ratings & Feedback Loop
 
 Ghumo Backend includes a community feedback engine that accepts 1 to 5 star ratings for places, itineraries, and recommendations.
 
 ---
 
-## 🔒 Single Active Rating Per User (`TargetFeedback`)
+## Single Active Rating Per User (`TargetFeedback`)
 
 To prevent rating manipulation, the system enforces a **single active rating per user per target**:
 
@@ -35,7 +35,7 @@ else:
 
 ---
 
-## 🧮 Bayesian Weighted Confidence Formula
+## Bayesian Weighted Confidence Formula
 
 To avoid ranking a place with one 5-star review higher than a place with fifty 4.8-star reviews, `feedback_service` calculates a **Bayesian Weighted Score**:
 
@@ -49,7 +49,7 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 
 ---
 
-## ⚡ API Response Payload Integration
+## API Response Payload Integration
 
 Place objects returned by `/search`, `/search/stream`, and `/suggestions` automatically include the backward-compatible `feedback` block:
 
@@ -63,14 +63,10 @@ Place objects returned by `/search`, `/search/stream`, and `/suggestions` automa
 
 ---
 
-## 🧪 Unit Tests
+## Unit Tests
 
 Covered in [`tests/test_community_feedback.py`](file:///c:/Users/ashki/OneDrive/Documents/Ghumo/ghumo_backend/tests/test_community_feedback.py):
 
 ```bash
 python -m pytest tests/test_community_feedback.py
 ```
-
----
-
-*Next Chapter: [Database Schema & Indexing Guide →](database-schema.html)*

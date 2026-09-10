@@ -5,7 +5,7 @@ lede: >-
   Scalable Travel Discovery, Real-time Search Engine & Place Intelligence Documentation
 ---
 
-# 🌍 Ghumo Backend API Documentation
+# Ghumo Backend API Documentation
 
 Welcome to the official technical documentation hub for the **Ghumo Backend API**.
 
@@ -13,18 +13,18 @@ Ghumo is a high-performance travel discovery engine, location intelligence platf
 
 ---
 
-## 📌 Master Documentation Index
+## Master Documentation Index
 
 Navigate through the documentation modules below:
 
 ```
-├── 🏗️ 1. System Architecture & Async Workflow ───────> /Ghumo_backend/docs/architecture/
-├── 🔌 2. Complete API Reference ────────────────────> /Ghumo_backend/docs/api-reference/
-├── 🛡️ 3. Place Quality Validator ───────────────────> /Ghumo_backend/docs/place-quality-validator/
-├── 🖼️ 4. Image Resolution Engine (Zero-Hallucination)> /Ghumo_backend/docs/image-resolution-engine/
-├── ⭐ 5. Community Feedback & Bayesian Ratings ─────> /Ghumo_backend/docs/community-feedback/
-├── 🗄️ 6. Database Schema & Indexing Guide ──────────> /Ghumo_backend/docs/database-schema/
-└── 🚀 7. Getting Started & Developer Setup ──────────> /Ghumo_backend/docs/getting-started/
+├── 1. System Architecture & Async Workflow ───────> /Ghumo_backend/docs/architecture/
+├── 2. Complete API Reference ────────────────────> /Ghumo_backend/docs/api-reference/
+├── 3. Place Quality Validator ───────────────────> /Ghumo_backend/docs/place-quality-validator/
+├── 4. Image Resolution Engine (Zero-Hallucination)> /Ghumo_backend/docs/image-resolution-engine/
+├── 5. Community Feedback & Bayesian Ratings ─────> /Ghumo_backend/docs/community-feedback/
+├── 6. Database Schema & Indexing Guide ──────────> /Ghumo_backend/docs/database-schema/
+└── 7. Getting Started & Developer Setup ──────────> /Ghumo_backend/docs/getting-started/
 ```
 
 ### Quick Navigation Grid
@@ -41,7 +41,7 @@ Navigate through the documentation modules below:
 
 ---
 
-## ⚡ Core Highlights
+## Core Highlights
 
 ### 1. PostgreSQL-First Storage Engine
 - **Single Source of Truth**: All valid places, AI context, search metrics (`search_count`, `last_searched_at`), and community ratings are permanently stored in Supabase PostgreSQL.
@@ -60,7 +60,7 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 
 ---
 
-## 🛠️ Tech Stack At A Glance
+## Tech Stack At A Glance
 
 ```
        [ Client Apps: iOS / Android / Web ]
