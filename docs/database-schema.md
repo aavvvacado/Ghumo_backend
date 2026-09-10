@@ -2,6 +2,8 @@
 layout: docs
 title: Database Schema & Indexing Guide
 description: Technical documentation for Supabase PostgreSQL tables, indexes, composite keys, and migration scripts.
+order: 7
+nav_order: 7
 ---
 
 # 🗄️ Database Schema & Indexing Guide

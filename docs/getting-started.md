@@ -2,6 +2,8 @@
 layout: docs
 title: Getting Started & Developer Guide
 description: Step-by-step setup guide for local development, environment configuration, and test suite execution.
+order: 8
+nav_order: 8
 ---
 
 # 🚀 Getting Started & Developer Guide

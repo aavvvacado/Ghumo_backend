@@ -2,6 +2,8 @@
 layout: docs
 title: Image Resolution Engine
 description: Zero-Hallucination Place Image Resolver pipeline using Wikimedia Commons, Wikidata, Unsplash, and Google Places APIs.
+order: 5
+nav_order: 5
 ---
 
 # 🖼️ Zero-Hallucination Image Resolution Engine

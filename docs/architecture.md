@@ -2,6 +2,8 @@
 layout: docs
 title: System Architecture & Async Workflow
 description: In-depth technical guide to Ghumo Backend's architecture, data flows, caching strategies, and task execution.
+order: 2
+nav_order: 2
 ---
 
 # 🏗️ System Architecture & Async Workflow

@@ -1,7 +1,9 @@
 ---
-layout: docs
+layout: default
 title: Home Overview & Table of Contents
 description: Ghumo Backend API Documentation Hub
+order: 1
+nav_order: 1
 ---
 
 # 🌍 Ghumo Backend API Documentation
