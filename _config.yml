@@ -1,0 +1,36 @@
+title: Ghumo Backend API
+subtitle: Scalable Travel Discovery, Real-time Search Engine & Place Intelligence
+description: High-performance travel intelligence API built with FastAPI, Supabase PostgreSQL, Valkey/Redis hot cache, Celery workers, and Gemini AI.
+remote_theme: ksauraj/stygian
+
+baseurl: "/Ghumo_backend"
+url: "https://aavvvacado.github.io"
+
+# GitHub Pages Plugins
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+# Markdown & Syntax Highlighting
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Navigation Menu
+nav:
+  - title: "Overview"
+    url: "#overview"
+  - title: "Architecture"
+    url: "#architecture"
+  - title: "API Reference"
+    url: "#api-endpoints"
+  - title: "Place Quality Validator"
+    url: "#place-quality-validator"
+  - title: "Image Resolution Engine"
+    url: "#image-resolution-engine"
+  - title: "Community Ratings"
+    url: "#community-ratings"
+  - title: "Database & Migration"
+    url: "#database--caching"
