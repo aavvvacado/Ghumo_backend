@@ -1,6 +1,6 @@
 ---
 layout: docs
-title: Overview & Specifications
+title: Ghumo Backend API Documentation
 nav_order: 1
 ---
 
