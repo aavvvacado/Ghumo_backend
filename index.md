@@ -17,15 +17,13 @@ Ghumo is a high-performance travel discovery engine, location intelligence platf
 
 Navigate through the documentation modules below:
 
-```
-├── 1. System Architecture & Async Workflow ───────> /Ghumo_backend/docs/architecture/
-├── 2. Complete API Reference ────────────────────> /Ghumo_backend/docs/api-reference/
-├── 3. Place Quality Validator ───────────────────> /Ghumo_backend/docs/place-quality-validator/
-├── 4. Image Resolution Engine (Zero-Hallucination)> /Ghumo_backend/docs/image-resolution-engine/
-├── 5. Community Feedback & Bayesian Ratings ─────> /Ghumo_backend/docs/community-feedback/
-├── 6. Database Schema & Indexing Guide ──────────> /Ghumo_backend/docs/database-schema/
-└── 7. Getting Started & Developer Setup ──────────> /Ghumo_backend/docs/getting-started/
-```
+- [1. System Architecture & Async Workflow](docs/architecture/)
+- [2. Complete API Reference](docs/api-reference/)
+- [3. Place Quality Validator](docs/place-quality-validator/)
+- [4. Image Resolution Engine (Zero-Hallucination)](docs/image-resolution-engine/)
+- [5. Community Feedback & Bayesian Ratings](docs/community-feedback/)
+- [6. Database Schema & Indexing Guide](docs/database-schema/)
+- [7. Getting Started & Developer Setup](docs/getting-started/)
 
 ### Quick Navigation Grid
 

@@ -1,0 +1,43 @@
+{%- comment -%}
+Jekyll 3.10 / Liquid 4.x Compatible nav-list.html for Stygian Theme
+Shadows remote theme _includes/nav-list.html to prevent multi-condition where_exp errors.
+{%- endcomment -%}
+{%- assign collection_name = site.stygian.nav.collection | default: 'docs' -%}
+{%- assign nav_all_docs = site[collection_name] | where_exp: 'item', 'item.title != nil' -%}
+{%- assign nav_top_nodes = '' | split: '' -%}
+
+{%- if nav_all_docs -%}
+  {%- for doc in nav_all_docs -%}
+    {%- assign is_top = false -%}
+    {%- if doc.parent == nil -%}
+      {%- assign is_top = true -%}
+    {%- endif -%}
+    {%- if doc.parent == "" -%}
+      {%- assign is_top = true -%}
+    {%- endif -%}
+    {%- if is_top -%}
+      {%- unless doc.nav_exclude -%}
+        {%- assign nav_top_nodes = nav_top_nodes | push: doc -%}
+      {%- endunless -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{%- assign nav_parenthood = nav_all_docs | group_by: 'parent' -%}
+{%- assign nav_top_node_titles = nav_top_nodes | map: 'title' -%}
+{%- include nav-sort.html pages=nav_top_nodes -%}
+
+<nav class="docs__nav" aria-label="Sections">
+  <ul class="docs__nav-list">
+    {%- assign nav_empty = '' | split: '' -%}
+    {%- include nav-tree.html pages=nav_sorted ancestors=nav_empty parenthood=nav_parenthood top_titles=nav_top_node_titles -%}
+  </ul>
+  {%- if site.nav_external_links -%}
+    <ul class="docs__nav-list docs__nav-external">
+      {%- for link in site.nav_external_links -%}
+        <li><a href="{{ link.url }}"{% if site.nav_external_links_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ link.title }}</a></li>
+      {%- endfor -%}
+    </ul>
+  {%- endif -%}
+  {% include nav_footer_custom.html %}
+</nav>
