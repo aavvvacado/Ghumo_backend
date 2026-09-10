@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Getting Started & Developer Guide
-nav_order: 8
+nav_order: 7
 ---
 
 # 🚀 Getting Started & Developer Guide

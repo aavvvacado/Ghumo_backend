@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Community Ratings & Feedback Loop
-nav_order: 6
+nav_order: 5
 ---
 
 # ⭐ Community Ratings & Feedback Loop

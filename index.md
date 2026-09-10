@@ -1,7 +1,8 @@
 ---
-layout: docs
-title: Overview & Specifications
-nav_order: 1
+layout: page
+title: Ghumo Backend API
+lede: >-
+  Scalable Travel Discovery, Real-time Search Engine & Place Intelligence Documentation
 ---
 
 # 🌍 Ghumo Backend API Documentation
@@ -12,32 +13,31 @@ Ghumo is a high-performance travel discovery engine, location intelligence platf
 
 ---
 
-## 📌 Master Table of Contents
+## 📌 Master Documentation Index
 
 Navigate through the documentation modules below:
 
 ```
-├── 🏠 1. Overview & Quick Summary (This Page)
-├── 🏗️ 2. System Architecture & Async Workflow ------> /docs/architecture.html
-├── 🔌 3. Complete API Reference ────────────────────> /docs/api-reference.html
-├── 🛡️ 4. Place Quality Validator ───────────────────> /docs/place-quality-validator.html
-├── 🖼️ 5. Image Resolution Engine (Zero-Hallucination)> /docs/image-resolution-engine.html
-├── ⭐ 6. Community Feedback & Bayesian Ratings ─────> /docs/community-feedback.html
-├── 🗄️ 7. Database Schema & Indexing Guide ──────────> /docs/database-schema.html
-└── 🚀 8. Getting Started & Developer Setup ──────────> /docs/getting-started.html
+├── 🏗️ 1. System Architecture & Async Workflow ───────> /Ghumo_backend/docs/architecture/
+├── 🔌 2. Complete API Reference ────────────────────> /Ghumo_backend/docs/api-reference/
+├── 🛡️ 3. Place Quality Validator ───────────────────> /Ghumo_backend/docs/place-quality-validator/
+├── 🖼️ 4. Image Resolution Engine (Zero-Hallucination)> /Ghumo_backend/docs/image-resolution-engine/
+├── ⭐ 5. Community Feedback & Bayesian Ratings ─────> /Ghumo_backend/docs/community-feedback/
+├── 🗄️ 6. Database Schema & Indexing Guide ──────────> /Ghumo_backend/docs/database-schema/
+└── 🚀 7. Getting Started & Developer Setup ──────────> /Ghumo_backend/docs/getting-started/
 ```
 
 ### Quick Navigation Grid
 
 | Module | Core Topics | Status |
 | :--- | :--- | :--- |
-| [**Architecture & Workflow**](docs/architecture.html) | PostgreSQL-First persistence, Valkey hot caching, Celery async background workers, Overpass OSM scanning | `v1.2 Active` |
-| [**API Reference**](docs/api-reference.html) | `/search`, `/search/stream` (SSE), `/suggestions`, `/target-feedback`, `/itinerary`, `/itinerary/video`, `/nearby` | `v1.2 Active` |
-| [**Quality Validator**](docs/place-quality-validator.html) | Pre/post enrichment validation, generic placeholder filter, canonical name normalization | `v1.2 Active` |
-| [**Image Resolution**](docs/image-resolution-engine.html) | Wikidata/Wikimedia Commons primary provider, Unsplash fallback, 7-day image caching | `v1.2 Active` |
-| [**Community Ratings**](docs/community-feedback.html) | 1-5 star user ratings, single-vote deduplication, Bayesian confidence weighted score calculation | `v1.2 Active` |
-| [**Database Schema**](docs/database-schema.html) | Supabase PostgreSQL tables, composite indexes (`idx_place_norm_city`), migration scripts | `v1.2 Active` |
-| [**Getting Started**](docs/getting-started.html) | Prerequisites, `.env` config, running `uvicorn`, `celery`, and `pytest` suite | `v1.2 Active` |
+| [**Architecture & Workflow**](docs/architecture/) | PostgreSQL-First persistence, Valkey hot caching, Celery async background workers, Overpass OSM scanning | `v1.2 Active` |
+| [**API Reference**](docs/api-reference/) | `/search`, `/search/stream` (SSE), `/suggestions`, `/target-feedback`, `/itinerary`, `/itinerary/video`, `/nearby` | `v1.2 Active` |
+| [**Quality Validator**](docs/place-quality-validator/) | Pre/post enrichment validation, generic placeholder filter, canonical name normalization | `v1.2 Active` |
+| [**Image Resolution**](docs/image-resolution-engine/) | Wikidata/Wikimedia Commons primary provider, Unsplash fallback, 7-day image caching | `v1.2 Active` |
+| [**Community Ratings**](docs/community-feedback/) | 1-5 star user ratings, single-vote deduplication, Bayesian confidence weighted score calculation | `v1.2 Active` |
+| [**Database Schema**](docs/database-schema/) | Supabase PostgreSQL tables, composite indexes (`idx_place_norm_city`), migration scripts | `v1.2 Active` |
+| [**Getting Started**](docs/getting-started/) | Prerequisites, `.env` config, running `uvicorn`, `celery`, and `pytest` suite | `v1.2 Active` |
 
 ---
 
@@ -73,7 +73,3 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 [ Valkey Hot Cache ] [ PostgreSQL DB ] [ Celery Worker Queue ]
 (Fast Lookup <50ms)  (Source of Truth)  (OSM + Gemini 1.5 AI)
 ```
-
----
-
-*Continue to the next chapter: [System Architecture & Async Workflow →](docs/architecture.html)*

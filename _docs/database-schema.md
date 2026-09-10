@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Database Schema & Indexing Guide
-nav_order: 7
+nav_order: 6
 ---
 
 # 🗄️ Database Schema & Indexing Guide

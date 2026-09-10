@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Place Quality Validator
-nav_order: 4
+nav_order: 3
 ---
 
 # 🛡️ Place Quality Validator

@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Image Resolution Engine
-nav_order: 5
+nav_order: 4
 ---
 
 # 🖼️ Zero-Hallucination Image Resolution Engine

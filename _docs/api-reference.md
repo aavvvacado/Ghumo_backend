@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: Complete API Reference
-nav_order: 3
+nav_order: 2
 ---
 
 # 🔌 Complete API Reference

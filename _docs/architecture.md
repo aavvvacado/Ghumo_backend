@@ -1,6 +1,7 @@
 ---
+layout: docs
 title: System Architecture & Async Workflow
-nav_order: 2
+nav_order: 1
 ---
 
 # 🏗️ System Architecture & Async Workflow
