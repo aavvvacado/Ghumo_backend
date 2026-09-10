@@ -183,21 +183,238 @@ Submit or update a 1 to 5 star rating for any place or itinerary. Deduplicated p
 
 ## 5. `POST /itinerary`
 
-Generates an AI-assisted travel itinerary tailored to user time available, interests, and budget.
+Generates an intelligent, chunked travel itinerary using Gemini AI. Supports both free-form natural language prompts (e.g. *"iam visiting goa for 3 days with 10000 budget"*) and structured constraint inputs.
 
-### Request Body
+### Request Body (Conversational Prompt)
+```json
+{
+  "prompt": "Visiting Goa for 3 days with a 10000 budget, love beaches and seafood"
+}
+```
+
+### Request Body (Structured Fields)
 ```json
 {
   "location": "Jaipur",
   "time_available": "2 days",
-  "interests": ["history", "food"],
-  "budget": "moderate"
+  "interests": ["heritage", "local food"],
+  "budget": "5000 INR"
+}
+```
+
+### Response Schema (`200 OK`)
+```json
+{
+  "location": "Goa",
+  "itinerary": "# Curated Itinerary: Goa\n\n**Total Duration**: 3 days | **Estimated Budget**: 10000 INR\n\n...",
+  "recommended_places": ["Anjuna Beach", "Fort Aguada", "Chapora Fort"],
+  "recommended_attractions": ["Basilica of Bom Jesus"],
+  "parsed_requirements": {
+    "destination": "Goa",
+    "duration": "3 days",
+    "mode": "day_wise",
+    "budget": "10000 INR",
+    "interests": ["beaches", "seafood"],
+    "stay_preference": "Anjuna or Calangute coastal area"
+  },
+  "plan": {
+    "destination": "Goa",
+    "total_duration": "3 days",
+    "mode": "day_wise",
+    "estimated_total_budget": "10000 INR",
+    "stay_area": "North Goa (Anjuna / Baga)",
+    "summary": "Sun-soaked coastal getaway with historic forts and beachside shacks.",
+    "budget_breakdown": {
+      "stay": "₹4,500",
+      "food": "₹2,500",
+      "activities": "₹1,500",
+      "transport": "₹1,500"
+    },
+    "days": [
+      {
+        "day": 1,
+        "title": "North Goa Coastline & Sunset Fortress",
+        "stay_recommendation": "Beachside Guesthouse near Anjuna",
+        "estimated_day_cost": "₹3,200",
+        "activities": [
+          {
+            "time_slot": "09:00 AM - 12:00 PM",
+            "place": "Anjuna Beach",
+            "duration": "3 hours",
+            "purpose": "Beach walks, watersports & seaside breakfast",
+            "cost_estimate": "₹400",
+            "image": {
+              "url": "https://upload.wikimedia.org/wikipedia/commons/...",
+              "source": "wikimedia"
+            }
+          }
+        ]
+      }
+    ],
+    "markdown_table": "| Timing / Slot | Place / Landmark | Duration | Purpose & Highlights | Estimated Cost |\n| :--- | :--- | :--- | :--- | :--- |\n| **DAY 1: North Goa Coastline** | | | | |\n| 09:00 AM - 12:00 PM | **Anjuna Beach** | 3 hours | Beach walks & watersports | ₹400 |"
+  }
 }
 ```
 
 ---
 
-## 6. `GET /health`
+## 6. `POST /itinerary/stream`
+
+Server-Sent Events (SSE) streaming endpoint for generating itineraries with live progress events (`init`, `intent_parsing`, `ai_generation`, `complete`).
+
+### Request Body
+```json
+{
+  "prompt": "3 days trip to Udaipur on a moderate budget"
+}
+```
+
+### Response (Event Stream `text/event-stream`)
+```http
+event: progress
+data: {"step": "init", "message": "Initiating itinerary planner for Udaipur..."}
+
+event: progress
+data: {"step": "intent_parsing", "message": "Parsing natural language travel prompt and extracting trip requirements..."}
+
+event: progress
+data: {"step": "ai_generation", "message": "Generating intelligent chunked travel plan with Gemini AI..."}
+
+event: complete
+data: {"step": "complete", "message": "Itinerary successfully generated", "data": { ...ItineraryResponse... }}
+```
+
+---
+
+## 7. `POST /itinerary/video`
+
+Extracts travel itinerary, destination landmarks, and food recommendations directly from a YouTube vlog URL.
+
+### Request Body
+```json
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+```
+
+### Response Schema (`200 OK`)
+```json
+{
+  "location": "Manali, Himachal Pradesh",
+  "itinerary": "Day 1: Arrive in Old Manali, visit Manu Temple and cafe hopping...",
+  "recommended_places": ["Old Manali", "Manu Temple", "Solang Valley"],
+  "recommended_attractions": []
+}
+```
+
+---
+
+## 8. `GET /nearby`
+
+Searches for verified physical attractions, food, and markets within a geographic radius around GPS coordinates.
+
+### Query Parameters
+- `lat` *(float, required)*: Latitude (e.g. `28.6139`)
+- `lng` *(float, required)*: Longitude (e.g. `77.2090`)
+- `radius` *(int, optional, default: 5000)*: Search radius in meters.
+
+### cURL Example
+```bash
+curl -X GET "http://localhost:8000/nearby?lat=28.6139&lng=77.2090&radius=3000"
+```
+
+### Response Schema (`200 OK`)
+```json
+{
+  "places": [
+    {
+      "name": "India Gate",
+      "lat": 28.6129,
+      "lng": 77.2295,
+      "type": "historic",
+      "distance_meters": 1820.5
+    }
+  ],
+  "food": [
+    {
+      "name": "Pandara Road Market",
+      "lat": 28.6080,
+      "lng": 77.2340,
+      "type": "restaurant",
+      "distance_meters": 2400.1
+    }
+  ],
+  "markets": []
+}
+```
+
+---
+
+## 9. `GET /hidden-gems`
+
+Returns offbeat, lesser-known travel gems and viewpoints discovered through deep web crawling and Reddit mining.
+
+### Query Parameters
+- `location` *(string, required)*: Target city or region (e.g., `Jaipur`).
+
+### cURL Example
+```bash
+curl -X GET "http://localhost:8000/hidden-gems?location=Jaipur"
+```
+
+### Response Schema (`200 OK`)
+```json
+[
+  {
+    "name": "Panna Meena Ka Kund",
+    "category": "Architecture / Stepwell",
+    "description": "An exquisite 16th-century symmetrical stepwell tucked away near Amer Fort, quiet and photogenic.",
+    "confidence_score": 0.92,
+    "source": "osm_and_reddit"
+  },
+  {
+    "name": "Galtaji Temple (Monkey Temple)",
+    "category": "Hidden Heritage",
+    "description": "Ancient Hindu pilgrimage complex set within a mountain pass with natural water springs.",
+    "confidence_score": 0.88,
+    "source": "reddit"
+  }
+]
+```
+
+---
+
+## 10. `GET /tips`
+
+Retrieves authentic community tips and local advice for a city or specific landmark.
+
+### Query Parameters
+- `city` *(string, optional)*: Filter tips by city name (e.g., `Delhi`).
+- `place_id` *(int, optional)*: Filter tips by database place ID.
+
+### cURL Example
+```bash
+curl -X GET "http://localhost:8000/tips?city=Delhi"
+```
+
+### Response Schema (`200 OK`)
+```json
+[
+  {
+    "id": 102,
+    "city": "Delhi",
+    "place_id": 14,
+    "tip_text": "Avoid auto-rickshaws charging flat rates outside the station; use the prepaid booth or metro.",
+    "source": "reddit",
+    "confidence_score": 1.0,
+    "created_at": "2026-09-10T14:32:00"
+  }
+]
+```
+
+---
+
+## 11. `GET /health`
 
 System health check endpoint verifying live status of Supabase PostgreSQL and Valkey cache.
 
