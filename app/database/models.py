@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, JSON, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, JSON, ForeignKey, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -10,6 +10,7 @@ class Place(Base):
     id = Column(Integer, primary_key=True, index=True)
     external_id = Column(String, unique=True, index=True)  # Google/OSM/OTM ID
     name = Column(String, index=True)
+    normalized_name = Column(String, index=True)
     category = Column(String)  # restaurant, attraction, market, etc.
     lat = Column(Float)
     lng = Column(Float)
@@ -17,7 +18,13 @@ class Place(Base):
     source = Column(String)  # osm, opentripmap
     confidence_score = Column(Float, default=0.0)
     source_count = Column(Integer, default=1)
+    search_count = Column(Integer, default=1, index=True)
+    last_searched_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_place_norm_city", "normalized_name", "city"),
+    )
 
 class Itinerary(Base):
     __tablename__ = "itineraries"
@@ -56,6 +63,7 @@ class PlaceRelation(Base):
     # Relationships
     place = relationship("Place", foreign_keys=[place_id], backref="relations")
     related_place = relationship("Place", foreign_keys=[related_place_id])
+
 class TravelTip(Base):
     __tablename__ = "travel_tips"
 
@@ -67,7 +75,6 @@ class TravelTip(Base):
     confidence_score = Column(Float, default=1.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationship to place (optional)
 class AIContext(Base):
     __tablename__ = "ai_context"
 
@@ -76,6 +83,8 @@ class AIContext(Base):
     ai_response = Column(JSON)
     sources = Column(JSON) # List of sources like ["reddit", "osm"]
     confidence_score = Column(Float)
+    search_count = Column(Integer, default=1, index=True)
+    last_searched_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserFeedback(Base):
@@ -88,6 +97,22 @@ class UserFeedback(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     itinerary = relationship("Itinerary", backref="feedbacks")
+
+class TargetFeedback(Base):
+    __tablename__ = "target_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id_or_anon = Column(String, index=True)
+    target_type = Column(String, index=True)  # place, itinerary, recommendation
+    target_id = Column(String, index=True)
+    rating = Column(Integer)  # 1-5
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id_or_anon", "target_type", "target_id", name="uq_user_target_feedback"),
+        Index("idx_target_feedback_target", "target_type", "target_id"),
+    )
 
 class ItineraryVersion(Base):
     __tablename__ = "itinerary_versions"
@@ -102,7 +127,7 @@ class ItineraryVersion(Base):
 
     itinerary = relationship("Itinerary", backref="versions")
 
-class SearchHistory(Base) :
+class SearchHistory(Base):
     __tablename__ = "search_history"
     id = Column(Integer, primary_key=True, index=True)
     query = Column(String, index=True)

@@ -96,6 +96,20 @@ class FeedbackRequest(BaseModel):
     rating: int
     feedback_text: Optional[str] = None
 
+class TargetFeedbackRequest(BaseModel):
+    target_type: str  # "place", "itinerary", "recommendation"
+    target_id: str
+    rating: int  # 1-5
+    user_id_or_anon: Optional[str] = "anonymous"
+
+class TargetFeedbackResponse(BaseModel):
+    status: str
+    target_type: str
+    target_id: str
+    average_rating: Optional[float] = None
+    rating_count: int = 0
+    weighted_score: Optional[float] = None
+
 class SearchHistoryResponse(BaseModel):
     query: str
     created_at: str

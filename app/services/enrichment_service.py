@@ -28,21 +28,46 @@ class EnrichmentService:
 
         from app.database.session import SessionLocal
         from app.database.models import AIContext, Place
+        from app.services.feedback_service import feedback_service
+        from app.utils.config import settings
+        from datetime import datetime
+
         db = SessionLocal()
         try:
             existing_context = db.query(AIContext).filter(AIContext.query == location_lower).first()
             if existing_context:
-                res = existing_context.ai_response
-                if not res.get("places") and not res.get("hidden_gems"):
+                existing_context.search_count = (existing_context.search_count or 0) + 1
+                existing_context.last_searched_at = datetime.utcnow()
+                db.commit()
+
+                res = dict(existing_context.ai_response or {})
+                if not res.get("places") and not res.get("hidden_gems") and not res.get("food"):
                     res["enriching"] = True
-                await cache_service.set_cache(f"search:{location_lower}", res, ttl=86400)
+                else:
+                    res["enriching"] = False
+
+                # Attach feedback stats to all items
+                for cat in ["places", "food", "markets", "attractions", "hidden_gems"]:
+                    if cat in res and isinstance(res[cat], list):
+                        for item in res[cat]:
+                            await feedback_service.attach_feedback_to_item(db, item, target_type="place")
+
+                # Promote to Valkey hot cache ONLY if search_count >= threshold
+                if existing_context.search_count >= settings.CACHE_SEARCH_THRESHOLD and not res.get("enriching"):
+                    logger.info(f"Promoting popular query '{location_lower}' (count: {existing_context.search_count}) to Valkey hot cache.")
+                    await cache_service.set_cache(f"search:{location_lower}", res, ttl=settings.CACHE_TTL_SECONDS)
+
                 return res
             
             # Layer 3: Local POI Lookup (Fast DB Search)
-            # If no context, look for places directly in the DB that match the city
             recent_places = db.query(Place).filter(Place.city.ilike(f"%{location}%")).limit(20).all()
             if recent_places:
-                db_places = [{"name": p.name, "lat": p.lat, "lng": p.lng, "type": p.category, "source": "db"} for p in recent_places]
+                db_places = []
+                for p in recent_places:
+                    p_dict = {"id": str(p.id), "name": p.name, "lat": p.lat, "lng": p.lng, "type": p.category, "source": "db"}
+                    await feedback_service.attach_feedback_to_item(db, p_dict, target_type="place")
+                    db_places.append(p_dict)
+
                 from app.services.place_image_resolver import place_image_resolver
                 try:
                     await place_image_resolver.resolve_places_batch(db_places, city=normalized_location, timeout=2.0)
@@ -56,7 +81,6 @@ class EnrichmentService:
                     "food": [], "markets": [], "attractions": [], "hidden_gems": [], "tips": [],
                     "enriching": True
                 }
-                await cache_service.set_cache(f"search:{location_lower}", results, ttl=300)
                 return results
         finally:
             db.close()
@@ -272,7 +296,7 @@ class EnrichmentService:
                     logger.warning(f"Image batch resolution error in enrichment for {normalized_location}: {img_err}")
 
             # Output Preparation
-            result = {
+            raw_result = {
                 "location": normalized_location,
                 "coordinates": {"lat": lat, "lng": lng} if lat and lng else {},
                 "places": places_list,
@@ -284,19 +308,35 @@ class EnrichmentService:
                 "enriching": False
             }
 
-            # 4. Save to Database & Knowledge Graph (Phase 4 connection point)
+            # Quality Validation Layer Check
+            from app.services.place_quality_validator import place_quality_validator
+            is_valid, val_reason, result = place_quality_validator.filter_and_validate_enrichment_response(raw_result)
+
+            if not is_valid:
+                logger.warning(f"Enrichment result rejected by PlaceQualityValidator for '{normalized_location}': {val_reason}")
+                err_response = {
+                    "location": normalized_location,
+                    "coordinates": {},
+                    "places": [], "food": [], "markets": [], "attractions": [], "hidden_gems": [], "tips": [],
+                    "enriching": False,
+                    "error": {
+                        "code": "INSUFFICIENT_PLACE_DATA",
+                        "message": "We couldn't find sufficient high-quality information for this place."
+                    }
+                }
+                return err_response
+
+            # 4. Save to Database & Knowledge Graph (PostgreSQL persistent source of truth)
             from app.services.knowledge_updater import knowledge_updater
             corpora = {"youtube": yt_text, "reddit": reddit_text, "blog": blog_text}
             await knowledge_updater.sync_intelligence_to_db(location_lower, result, corpora)
 
-            # 5. Update Cache
+            # 5. Hot Cache Check
+            # Only promote to Valkey hot cache if result has valid data
             has_data = bool(result.get("places") or result.get("food") or result.get("attractions") or result.get("hidden_gems"))
-            ttl = 86400 if has_data else 10
-            await cache_service.set_cache(f"search:{location_lower}", result, ttl=ttl)
             if has_data:
-                logger.info(f"Background enrichment completed successfully for {normalized_location}.")
-            else:
-                logger.warning(f"Background enrichment yielded shallow data for {normalized_location}. Short cache TTL applied.")
+                await cache_service.set_cache(f"search:{location_lower}", result, ttl=settings.CACHE_TTL_SECONDS)
+                logger.info(f"Background enrichment completed successfully for {normalized_location}. Stored in DB and promoted to cache.")
             
             return result
 

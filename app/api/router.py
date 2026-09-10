@@ -11,7 +11,8 @@ from app.api.schemas import (
     SyncResponse, TravelTipResponse, FeedbackRequest,
     SearchHistoryResponse, RecommendationResponse,
     ContributionRequest, ContributionResponse,
-    VideoItineraryRequest, SearchStreamRequest)
+    VideoItineraryRequest, SearchStreamRequest,
+    TargetFeedbackRequest, TargetFeedbackResponse)
 from app.services.enrichment_service import enrichment_service
 from app.services.search_service import search_service
 from app.services.nearby_service import nearby_service
@@ -353,6 +354,35 @@ async def submit_contribution(request: ContributionRequest):
         return {"status": "success", "message": "Contribution submitted successfully", "contribution_id": contribution.id}
     except Exception as e:
         logger.error(f"Error submitting contribution: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        db.close()
+
+@router.post("/target-feedback", response_model=TargetFeedbackResponse)
+async def submit_target_feedback(request: TargetFeedbackRequest):
+    from app.database.session import SessionLocal
+    from app.services.feedback_service import feedback_service
+    db = SessionLocal()
+    try:
+        summary = await feedback_service.submit_feedback(
+            db=db,
+            user_id_or_anon=request.user_id_or_anon or "anonymous",
+            target_type=request.target_type,
+            target_id=request.target_id,
+            rating=request.rating
+        )
+        return {
+            "status": "success",
+            "target_type": request.target_type,
+            "target_id": request.target_id,
+            "average_rating": summary.get("averageRating"),
+            "rating_count": summary.get("ratingCount"),
+            "weighted_score": summary.get("weightedScore")
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error submitting target feedback: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         db.close()

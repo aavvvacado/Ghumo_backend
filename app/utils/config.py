@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     # Valkey Config
     VALKEY_URL: str = "redis://localhost:6379/0"
+    CACHE_SEARCH_THRESHOLD: int = 3
+    MIN_FEEDBACK_COUNT: int = 5
+    CACHE_TTL_SECONDS: int = 604800
 
     # Webshare Proxy Config
     WEBSHARE_USERNAME: str = ""

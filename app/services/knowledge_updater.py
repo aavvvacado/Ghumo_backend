@@ -60,43 +60,57 @@ class KnowledgeUpdater:
                     existing_ctx.sources = list(set(existing_ctx.sources + list(corpora.keys())))
 
             # 2. Store & Merge Places (Granular Intelligence)
+            from app.services.place_quality_validator import place_quality_validator
+            from app.services.search_service import search_service
+
             for cat in ["places", "food", "markets", "attractions"]:
                 for item in intelligence.get(cat, []):
-                    place_name = item.get("name")
-                    if not place_name: continue
+                    is_valid, reason, clean_item = place_quality_validator.validate_place_item(item)
+                    if not is_valid:
+                        logger.debug(f"Skipping DB insert for invalid place item '{item}': {reason}")
+                        continue
+
+                    place_name = clean_item.get("name")
+                    norm_name = place_name.lower().strip()
+                    new_score = self.calculate_confidence_score(clean_item, corpora)
                     
-                    new_score = self.calculate_confidence_score(item, corpora)
-                    existing_place = db.query(Place).filter(Place.name == place_name).first()
+                    # Search by normalized_name and city
+                    existing_place = db.query(Place).filter(
+                        (Place.normalized_name == norm_name) | (Place.name.ilike(place_name))
+                    ).filter(Place.city.ilike(f"%{query_key}%")).first()
 
                     if not existing_place:
                         db.add(Place(
                             name=place_name,
+                            normalized_name=norm_name,
                             category=cat,
-                            lat=item.get("lat"),
-                            lng=item.get("lng"),
+                            lat=clean_item.get("lat"),
+                            lng=clean_item.get("lng"),
                             city=query_key,
-                            source=item.get("source", "intelligence_engine"),
+                            source=clean_item.get("source", "intelligence_engine"),
                             confidence_score=new_score,
-                            source_count=1
+                            source_count=1,
+                            search_count=1
                         ))
                     else:
-                        # SMART MERGE: Only update if new signals improve our confidence
+                        existing_place.search_count += 1
                         if new_score > existing_place.confidence_score:
                             logger.info(f"Upgrading data for {place_name}: {existing_place.confidence_score} -> {new_score}")
                             existing_place.confidence_score = new_score
                             existing_place.source_count += 1
-                            # Update coordinates if they were missing
-                            if not existing_place.lat and item.get("lat"):
-                                existing_place.lat = item.get("lat")
-                                existing_place.lng = item.get("lng")
+                            if not existing_place.lat and clean_item.get("lat"):
+                                existing_place.lat = clean_item.get("lat")
+                                existing_place.lng = clean_item.get("lng")
 
             # 3. Store & Merge Hidden Gems
             for item in intelligence.get("hidden_gems", []):
-                place_name = item.get("name")
-                if not place_name: continue
+                is_valid, reason, clean_item = place_quality_validator.validate_place_item(item)
+                if not is_valid:
+                    continue
 
-                new_score = self.calculate_confidence_score(item, corpora)
-                existing_gem = db.query(HiddenGem).filter(HiddenGem.name == place_name).first()
+                place_name = clean_item.get("name")
+                new_score = self.calculate_confidence_score(clean_item, corpora)
+                existing_gem = db.query(HiddenGem).filter(HiddenGem.name.ilike(place_name)).first()
                 if existing_gem:
                     if new_score > existing_gem.confidence_score:
                         existing_gem.confidence_score = new_score
@@ -104,11 +118,11 @@ class KnowledgeUpdater:
                     db.add(HiddenGem(
                         name=place_name,
                         category="hidden_gem",
-                        lat=item.get("lat"),
-                        lng=item.get("lng"),
+                        lat=clean_item.get("lat"),
+                        lng=clean_item.get("lng"),
                         city=query_key,
-                        source=item.get("source", "intelligence_engine"),
-                        confidence_score=max(new_score, 0.7) # AI gems start high
+                        source=clean_item.get("source", "intelligence_engine"),
+                        confidence_score=max(new_score, 0.7)
                     ))
 
             # 4. Store Tips (Concatenated)

@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 from app.services.youtube_service import youtube_service
 from app.services.cache_service import cache_service
@@ -14,12 +14,11 @@ async def test_fetch_external_transcript_caching():
     # Ensure clean state
     await cache_service.delete_cache(cache_key)
 
-    mock_transcript = "This is a test transcript for Manali travel guide."
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"transcript": mock_transcript}
 
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_response = AsyncMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"transcript": mock_transcript}
+    with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
         with patch("app.utils.config.settings.YOUTUBE_TRANSCRIPT_API_URL", "https://api.test/transcript"):
