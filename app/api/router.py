@@ -12,7 +12,8 @@ from app.api.schemas import (
     SearchHistoryResponse, RecommendationResponse,
     ContributionRequest, ContributionResponse,
     VideoItineraryRequest, SearchStreamRequest,
-    TargetFeedbackRequest, TargetFeedbackResponse)
+    TargetFeedbackRequest, TargetFeedbackResponse,
+    PlaceSuggestionItem, SuggestionsResponse)
 from app.services.enrichment_service import enrichment_service
 from app.services.search_service import search_service
 from app.services.nearby_service import nearby_service
@@ -386,3 +387,103 @@ async def submit_target_feedback(request: TargetFeedbackRequest):
         raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         db.close()
+
+@router.get("/suggestions", response_model=SuggestionsResponse)
+async def get_place_suggestions(
+    limit: int = 10,
+    city: Optional[str] = None,
+    category: Optional[str] = None
+):
+    """
+    Returns trending/hot places from the database that have verified image URLs.
+    Filters out invalid/empty items and attaches community feedback scores.
+    """
+    from app.database.session import SessionLocal
+    from app.database.models import Place, AIContext
+    from app.services.place_image_resolver import place_image_resolver
+    from app.services.place_quality_validator import place_quality_validator
+    from app.services.feedback_service import feedback_service
+
+    db = SessionLocal()
+    try:
+        candidate_places = []
+        seen_names = set()
+
+        # 1. Fetch top places directly from Place table ordered by search_count
+        query = db.query(Place)
+        if city:
+            query = query.filter(Place.city.ilike(f"%{city}%"))
+        if category:
+            query = query.filter(Place.category.ilike(f"%{category}%"))
+        
+        db_places = query.order_by(Place.search_count.desc(), Place.id.desc()).limit(limit * 3).all()
+        for p in db_places:
+            norm = place_quality_validator.normalize_place_name(p.name)
+            if norm and norm not in seen_names:
+                item_dict = {
+                    "id": p.id,
+                    "name": p.name,
+                    "city": p.city or "",
+                    "category": p.category or "places",
+                    "lat": p.lat,
+                    "lng": p.lng,
+                    "search_count": p.search_count or 1
+                }
+                is_valid, _, clean_item = place_quality_validator.validate_place_item(item_dict)
+                if is_valid:
+                    seen_names.add(norm)
+                    candidate_places.append(clean_item)
+
+        # 2. If candidate count < limit * 2, pull top places from AIContext
+        if len(candidate_places) < limit * 2:
+            ai_contexts = db.query(AIContext).order_by(AIContext.search_count.desc()).limit(20).all()
+            for ctx in ai_contexts:
+                if not ctx.ai_response or not isinstance(ctx.ai_response, dict):
+                    continue
+                places_in_ctx = ctx.ai_response.get("places", []) + ctx.ai_response.get("food", []) + ctx.ai_response.get("attractions", [])
+                for item in places_in_ctx:
+                    if not isinstance(item, dict) or not item.get("name"):
+                        continue
+                    norm = place_quality_validator.normalize_place_name(item["name"])
+                    if norm and norm not in seen_names:
+                        item_dict = {
+                            "id": None,
+                            "name": item["name"],
+                            "city": ctx.query or "",
+                            "category": item.get("type") or "places",
+                            "lat": item.get("lat"),
+                            "lng": item.get("lng"),
+                            "search_count": ctx.search_count or 1
+                        }
+                        is_valid, _, clean_item = place_quality_validator.validate_place_item(item_dict)
+                        if is_valid:
+                            seen_names.add(norm)
+                            candidate_places.append(clean_item)
+
+        if not candidate_places:
+            return {"total": 0, "suggestions": []}
+
+        # 3. Resolve images concurrently for candidates
+        await place_image_resolver.resolve_places_batch(candidate_places, timeout=4.0)
+
+        # 4. Filter strictly for items with a valid image URL
+        valid_suggestions = []
+        for item in candidate_places:
+            img = item.get("image")
+            if img and isinstance(img, dict) and img.get("url"):
+                # Attach feedback stats
+                fb = await feedback_service.get_feedback_summary(
+                    db, target_type="place", target_id=item["name"]
+                )
+                item["feedback"] = fb
+                valid_suggestions.append(item)
+                if len(valid_suggestions) >= limit:
+                    break
+
+        return {
+            "total": len(valid_suggestions),
+            "suggestions": valid_suggestions
+        }
+    finally:
+        db.close()
+

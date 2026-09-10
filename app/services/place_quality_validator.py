@@ -12,6 +12,18 @@ class PlaceQualityValidator:
     """
 
     @classmethod
+    def normalize_place_name(cls, name: str) -> str:
+        """
+        Normalizes a place name for canonical deduplication.
+        Lowercases, strips punctuation and whitespace.
+        """
+        import re
+        if not name:
+            return ""
+        clean = re.sub(r'[^\w\s]', '', str(name).lower())
+        return ' '.join(clean.split())
+
+    @classmethod
     def validate_place_item(cls, item: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
         """
         Validates a single place/attraction/food/market dictionary.

@@ -131,3 +131,19 @@ class ContributionResponse(BaseModel):
     status: str
     message: str
     contribution_id: int
+
+class PlaceSuggestionItem(BaseModel):
+    id: Optional[int] = None
+    name: str
+    city: Optional[str] = ""
+    category: Optional[str] = "places"
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    search_count: int = 1
+    image: dict
+    feedback: Optional[dict] = None
+
+class SuggestionsResponse(BaseModel):
+    total: int
+    suggestions: List[PlaceSuggestionItem]
+
