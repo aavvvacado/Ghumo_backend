@@ -1,8 +1,6 @@
 ---
-layout: default
-title: Home Overview & Table of Contents
-description: Ghumo Backend API Documentation Hub
-order: 1
+layout: docs
+title: Overview & Specifications
 nav_order: 1
 ---
 

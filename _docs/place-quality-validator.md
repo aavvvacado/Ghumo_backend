@@ -1,8 +1,5 @@
 ---
-layout: docs
 title: Place Quality Validator
-description: Documentation for Ghumo Backend's Quality Validation Layer, filtering rules, and canonical place name normalization.
-order: 4
 nav_order: 4
 ---
 

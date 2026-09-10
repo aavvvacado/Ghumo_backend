@@ -1,8 +1,5 @@
 ---
-layout: docs
 title: Community Ratings & Feedback Loop
-description: Bayesian weighted confidence rating system, user single-vote deduplication, and feedback service API documentation.
-order: 6
 nav_order: 6
 ---
 

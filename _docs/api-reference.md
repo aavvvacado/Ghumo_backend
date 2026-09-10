@@ -1,8 +1,5 @@
 ---
-layout: docs
 title: Complete API Reference
-description: Comprehensive documentation for all REST and Server-Sent Events (SSE) endpoints in Ghumo Backend.
-order: 3
 nav_order: 3
 ---
 

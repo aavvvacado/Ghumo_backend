@@ -1,45 +1,22 @@
-title: Ghumo Backend Documentation
-subtitle: Scalable Travel Discovery, Real-time Search Engine & Place Intelligence
-description: High-performance travel intelligence API built with FastAPI, Supabase PostgreSQL, Valkey/Redis hot cache, Celery workers, and Gemini AI.
+# Ghumo Backend API Documentation Site - Stygian theme
+# Renderer: https://github.com/ksauraj/stygian (just-the-docs style)
+title: Ghumo Backend API
+url: "https://aavvvacado.github.io"
+baseurl: "/Ghumo_backend"
+description: >-
+  Scalable travel discovery engine, real-time search, place intelligence,
+  zero-hallucination image resolution, and community rating API.
+
 remote_theme: ksauraj/stygian
 
-baseurl: "/Ghumo_backend"
-url: "https://aavvvacado.github.io"
-
-# Declare Jekyll Collections required by Stygian theme
-collections:
-  docs:
-    output: true
-    permalink: /docs/:name.html
-
-# GitHub Pages Plugins
-plugins:
-  - jekyll-remote-theme
-  - jekyll-seo-tag
-  - jekyll-sitemap
-
-# Markdown & Syntax Highlighting
+# ------------------------------------------------------------------ build
 markdown: kramdown
 highlighter: rouge
 kramdown:
   input: GFM
+  auto_ids: true
+  hard_wrap: false
   syntax_highlighter: rouge
-
-# Navigation Menu
-nav:
-  - title: "Home Overview"
-    url: "/index.html"
-  - title: "Architecture & Workflow"
-    url: "/docs/architecture.html"
-  - title: "API Reference"
-    url: "/docs/api-reference.html"
-  - title: "Quality Validator"
-    url: "/docs/place-quality-validator.html"
-  - title: "Image Resolution Engine"
-    url: "/docs/image-resolution-engine.html"
-  - title: "Community Ratings"
-    url: "/docs/community-feedback.html"
-  - title: "Database Schema"
-    url: "/docs/database-schema.html"
-  - title: "Getting Started"
-    url: "/docs/getting-started.html"
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
