@@ -1,8 +1,7 @@
 ---
-layout: page
-title: Ghumo Backend API
-lede: >-
-  Scalable Travel Discovery, Real-time Search Engine & Place Intelligence Documentation
+layout: docs
+title: Overview & Specifications
+nav_order: 1
 ---
 
 # Ghumo Backend API Documentation
@@ -17,25 +16,25 @@ Ghumo is a high-performance travel discovery engine, location intelligence platf
 
 Navigate through the documentation modules below:
 
-- [1. System Architecture & Async Workflow](docs/architecture/)
-- [2. Complete API Reference](docs/api-reference/)
-- [3. Place Quality Validator](docs/place-quality-validator/)
-- [4. Image Resolution Engine (Zero-Hallucination)](docs/image-resolution-engine/)
-- [5. Community Feedback & Bayesian Ratings](docs/community-feedback/)
-- [6. Database Schema & Indexing Guide](docs/database-schema/)
-- [7. Getting Started & Developer Setup](docs/getting-started/)
+- [1. System Architecture & Async Workflow]({{ site.baseurl }}/docs/architecture/)
+- [2. Complete API Reference]({{ site.baseurl }}/docs/api-reference/)
+- [3. Place Quality Validator]({{ site.baseurl }}/docs/place-quality-validator/)
+- [4. Image Resolution Engine (Zero-Hallucination)]({{ site.baseurl }}/docs/image-resolution-engine/)
+- [5. Community Feedback & Bayesian Ratings]({{ site.baseurl }}/docs/community-feedback/)
+- [6. Database Schema & Indexing Guide]({{ site.baseurl }}/docs/database-schema/)
+- [7. Getting Started & Developer Setup]({{ site.baseurl }}/docs/getting-started/)
 
 ### Quick Navigation Grid
 
 | Module | Core Topics | Status |
 | :--- | :--- | :--- |
-| [**Architecture & Workflow**](docs/architecture/) | PostgreSQL-First persistence, Valkey hot caching, Celery async background workers, Overpass OSM scanning | `v1.2 Active` |
-| [**API Reference**](docs/api-reference/) | `/search`, `/search/stream` (SSE), `/suggestions`, `/target-feedback`, `/itinerary`, `/itinerary/video`, `/nearby` | `v1.2 Active` |
-| [**Quality Validator**](docs/place-quality-validator/) | Pre/post enrichment validation, generic placeholder filter, canonical name normalization | `v1.2 Active` |
-| [**Image Resolution**](docs/image-resolution-engine/) | Wikidata/Wikimedia Commons primary provider, Unsplash fallback, 7-day image caching | `v1.2 Active` |
-| [**Community Ratings**](docs/community-feedback/) | 1-5 star user ratings, single-vote deduplication, Bayesian confidence weighted score calculation | `v1.2 Active` |
-| [**Database Schema**](docs/database-schema/) | Supabase PostgreSQL tables, composite indexes (`idx_place_norm_city`), migration scripts | `v1.2 Active` |
-| [**Getting Started**](docs/getting-started/) | Prerequisites, `.env` config, running `uvicorn`, `celery`, and `pytest` suite | `v1.2 Active` |
+| [**Architecture & Workflow**]({{ site.baseurl }}/docs/architecture/) | PostgreSQL-First persistence, Valkey hot caching, Celery async background workers, Overpass OSM scanning | `v1.2 Active` |
+| [**API Reference**]({{ site.baseurl }}/docs/api-reference/) | `/search`, `/search/stream` (SSE), `/suggestions`, `/target-feedback`, `/itinerary`, `/itinerary/video`, `/nearby` | `v1.2 Active` |
+| [**Quality Validator**]({{ site.baseurl }}/docs/place-quality-validator/) | Pre/post enrichment validation, generic placeholder filter, canonical name normalization | `v1.2 Active` |
+| [**Image Resolution**]({{ site.baseurl }}/docs/image-resolution-engine/) | Wikidata/Wikimedia Commons primary provider, Unsplash fallback, 7-day image caching | `v1.2 Active` |
+| [**Community Ratings**]({{ site.baseurl }}/docs/community-feedback/) | 1-5 star user ratings, single-vote deduplication, Bayesian confidence weighted score calculation | `v1.2 Active` |
+| [**Database Schema**]({{ site.baseurl }}/docs/database-schema/) | Supabase PostgreSQL tables, composite indexes (`idx_place_norm_city`), migration scripts | `v1.2 Active` |
+| [**Getting Started**]({{ site.baseurl }}/docs/getting-started/) | Prerequisites, `.env` config, running `uvicorn`, `celery`, and `pytest` suite | `v1.2 Active` |
 
 ---
 
