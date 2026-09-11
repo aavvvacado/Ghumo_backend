@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     UNSPLASH_ACCESS_KEY: str = ""
     OPENTRIPMAP_API_KEY: str = ""
     YOUTUBE_TRANSCRIPT_API_URL: str = ""
+    TRANSCRIPT_API_KEY: str = ""
+    TRANSCRIPT_API_URL: str = "https://transcriptapi.com/api/v2/youtube/transcript"
     
     # AI Config
     OLLAMA_BASE_URL: str = "http://localhost:11434"
@@ -22,7 +24,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL_NAME: str = "llama-3.3-70b-versatile"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL_NAME: str = "gemini-3.5-flash"
+    GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
 
     # Valkey Config
     VALKEY_URL: str = "redis://localhost:6379/0"

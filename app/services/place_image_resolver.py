@@ -221,7 +221,7 @@ class GooglePlacesProvider:
     @classmethod
     async def resolve_image(cls, place_name: str, city: str = "") -> Optional[Dict[str, Any]]:
         api_key = settings.GOOGLE_PLACES_API_KEY
-        if not api_key:
+        if not api_key or "your_" in api_key.lower() or api_key == "your_google_key":
             return None
 
         query = f"{place_name} {city}".strip()

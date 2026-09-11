@@ -45,13 +45,24 @@ class AIService:
 
     async def _generate_gemini(self, prompt: str, system_prompt: str) -> str:
         """Internal helper for Gemini API generation with multi-model fallback."""
-        candidate_models = [settings.GEMINI_MODEL_NAME, "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
-        candidate_models = list(dict.fromkeys(candidate_models))
+        candidate_models = [
+            settings.GEMINI_MODEL_NAME,
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-lite-latest",
+        ]
+        candidate_models = list(dict.fromkeys([m for m in candidate_models if m]))
 
         last_error = None
         for model in candidate_models:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                headers = {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": settings.GEMINI_API_KEY
+                }
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
@@ -66,7 +77,7 @@ class AIService:
                     payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
                 async with httpx.AsyncClient() as client:
-                    response = await client.post(url, json=payload, timeout=60.0)
+                    response = await client.post(url, headers=headers, json=payload, timeout=60.0)
                     if response.status_code == 200:
                         res_data = response.json()
                         candidates = res_data.get("candidates", [])
@@ -88,7 +99,27 @@ class AIService:
     async def generate_content(self, prompt: str, system_prompt: str = "You are a helpful travel assistant.") -> str:
         """Generic method to generate content using the selected AI source."""
         if self.source == "gemini" and settings.GEMINI_API_KEY:
-            return await self._generate_gemini(prompt, system_prompt)
+            res = await self._generate_gemini(prompt, system_prompt)
+            if not res.startswith("Error via Gemini:"):
+                return res
+            # Fallback to Groq if Gemini quotas are exhausted
+            if self.groq_client:
+                logger.warning("Gemini models failed/exhausted. Falling back to Groq...")
+                try:
+                    completion = await self.groq_client.chat.completions.create(
+                        model=settings.GROQ_MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.7,
+                        max_tokens=4096,
+                        response_format={"type": "json_object"}
+                    )
+                    return completion.choices[0].message.content
+                except Exception as ge:
+                    logger.error(f"Groq fallback failed: {ge}")
+            return res
 
         elif self.source == "groq" and self.groq_client:
             try:

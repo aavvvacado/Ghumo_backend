@@ -8,6 +8,7 @@ from app.crawlers.blog_crawler import blog_crawler
 from app.services.youtube_service import youtube_service
 from app.services.context_reasoning_service import context_reasoning_service
 from app.services.cache_service import cache_service
+from app.utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,64 +24,151 @@ class EnrichmentService:
         
         # 1. Layer 1: Valkey Cache (Instant)
         cached = await cache_service.get_cache(f"search:{location_lower}")
-        if cached:
-            return cached
+        if cached and isinstance(cached, dict):
+            has_cached_content = any(len(cached.get(k, [])) > 0 for k in ["places", "food", "markets", "attractions", "hidden_gems"])
+            if has_cached_content:
+                return cached
 
         from app.database.session import SessionLocal
-        from app.database.models import AIContext, Place
+        from app.database.models import AIContext, Place, HiddenGem, TravelTip
         from app.services.feedback_service import feedback_service
-        from app.utils.config import settings
+        from app.services.place_quality_validator import place_quality_validator
         from datetime import datetime
 
         db = SessionLocal()
         try:
+            # 2. Layer 2: Persistent AIContext (only if it has actual place intelligence)
             existing_context = db.query(AIContext).filter(AIContext.query == location_lower).first()
-            if existing_context:
-                existing_context.search_count = (existing_context.search_count or 0) + 1
-                existing_context.last_searched_at = datetime.utcnow()
-                db.commit()
+            if existing_context and existing_context.ai_response and isinstance(existing_context.ai_response, dict):
+                res = dict(existing_context.ai_response)
+                has_content = any(len(res.get(k, [])) > 0 for k in ["places", "food", "markets", "attractions", "hidden_gems"])
+                if has_content:
+                    existing_context.search_count = (existing_context.search_count or 0) + 1
+                    existing_context.last_searched_at = datetime.utcnow()
+                    db.commit()
 
-                res = dict(existing_context.ai_response or {})
-                if not res.get("places") and not res.get("hidden_gems") and not res.get("food"):
-                    res["enriching"] = True
-                else:
                     res["enriching"] = False
+                    # Attach feedback stats to all items
+                    for cat in ["places", "food", "markets", "attractions", "hidden_gems"]:
+                        if cat in res and isinstance(res[cat], list):
+                            for item in res[cat]:
+                                await feedback_service.attach_feedback_to_item(db, item, target_type="place")
 
-                # Attach feedback stats to all items
-                for cat in ["places", "food", "markets", "attractions", "hidden_gems"]:
-                    if cat in res and isinstance(res[cat], list):
-                        for item in res[cat]:
-                            await feedback_service.attach_feedback_to_item(db, item, target_type="place")
+                    if existing_context.search_count >= settings.CACHE_SEARCH_THRESHOLD:
+                        await cache_service.set_cache(f"search:{location_lower}", res, ttl=settings.CACHE_TTL_SECONDS)
 
-                # Promote to Valkey hot cache ONLY if search_count >= threshold
-                if existing_context.search_count >= settings.CACHE_SEARCH_THRESHOLD and not res.get("enriching"):
-                    logger.info(f"Promoting popular query '{location_lower}' (count: {existing_context.search_count}) to Valkey hot cache.")
-                    await cache_service.set_cache(f"search:{location_lower}", res, ttl=settings.CACHE_TTL_SECONDS)
+                    return res
 
-                return res
-            
-            # Layer 3: Local POI Lookup (Fast DB Search)
-            recent_places = db.query(Place).filter(Place.city.ilike(f"%{location}%")).limit(20).all()
-            if recent_places:
+            # 3. Layer 3: Specific Place / POI Matching (e.g. "kiet group of institutions")
+            norm_q = place_quality_validator.normalize_place_name(location)
+            matched_place = db.query(Place).filter(
+                (Place.normalized_name == norm_q) |
+                (Place.name.ilike(location.strip())) |
+                (Place.normalized_name.ilike(f"%{norm_q}%")) |
+                (Place.name.ilike(f"%{location.strip()}%"))
+            ).order_by(Place.confidence_score.desc(), Place.search_count.desc()).first()
+
+            if matched_place:
+                target_city = (matched_place.city or "NCR").strip()
+                logger.info(f"Query '{location}' matched place '{matched_place.name}' in city '{target_city}'")
+                
+                # Check if parent city has rich AIContext (e.g. "muradnagar")
+                city_ctx = db.query(AIContext).filter(AIContext.query == target_city.lower()).first()
+                if city_ctx and city_ctx.ai_response and isinstance(city_ctx.ai_response, dict):
+                    city_res = dict(city_ctx.ai_response)
+                    has_city_content = any(len(city_res.get(k, [])) > 0 for k in ["places", "food", "markets", "attractions", "hidden_gems"])
+                    if has_city_content:
+                        # Prioritize matched place at the front of its category
+                        place_dict = {
+                            "name": matched_place.name,
+                            "type": matched_place.category or "attraction",
+                            "category": "attractions" if (matched_place.category or "").lower() in ["college", "attraction", "monument", "ghat"] else "places",
+                            "lat": matched_place.lat,
+                            "lng": matched_place.lng,
+                            "description": f"Featured destination in {target_city}",
+                            "source": matched_place.source or "manual"
+                        }
+                        target_bucket = place_dict["category"]
+                        if target_bucket not in city_res or not isinstance(city_res[target_bucket], list):
+                            city_res[target_bucket] = []
+
+                        # Filter out duplicate and insert at front
+                        city_res[target_bucket] = [place_dict] + [
+                            p for p in city_res[target_bucket]
+                            if place_quality_validator.normalize_place_name(p.get("name", "")) != norm_q
+                        ]
+
+                        city_res["location"] = f"{matched_place.name}, {target_city}"
+                        city_res["coordinates"] = {"lat": matched_place.lat, "lng": matched_place.lng}
+                        city_res["enriching"] = False
+
+                        # Cache and update the hollow AIContext
+                        await cache_service.set_cache(f"search:{location_lower}", city_res, ttl=settings.CACHE_TTL_SECONDS)
+                        if existing_context:
+                            existing_context.ai_response = city_res
+                            existing_context.search_count = (existing_context.search_count or 0) + 1
+                            db.commit()
+                        else:
+                            db.add(AIContext(query=location_lower, ai_response=city_res, sources=["manual_seed"], confidence_score=1.0))
+                            db.commit()
+                        return city_res
+
+            # 4. Layer 4: City / Region POI Lookup from Database
+            city_places = db.query(Place).filter(
+                (Place.city.ilike(f"%{location}%")) | (Place.city.ilike(f"%{normalized_location}%"))
+            ).order_by(Place.search_count.desc()).limit(25).all()
+
+            if city_places:
                 db_places = []
-                for p in recent_places:
-                    p_dict = {"id": str(p.id), "name": p.name, "lat": p.lat, "lng": p.lng, "type": p.category, "source": "db"}
-                    await feedback_service.attach_feedback_to_item(db, p_dict, target_type="place")
-                    db_places.append(p_dict)
+                food_list = []
+                markets_list = []
+                attractions_list = []
+                hidden_gems_list = []
 
-                from app.services.place_image_resolver import place_image_resolver
-                try:
-                    await place_image_resolver.resolve_places_batch(db_places, city=normalized_location, timeout=2.0)
-                except Exception as img_err:
-                    logger.warning(f"Failed to resolve images for Layer 3 DB hit: {img_err}")
+                for p in city_places:
+                    p_dict = {
+                        "id": str(p.id),
+                        "name": p.name,
+                        "lat": p.lat,
+                        "lng": p.lng,
+                        "type": p.category,
+                        "category": p.category,
+                        "source": p.source or "db"
+                    }
+                    await feedback_service.attach_feedback_to_item(db, p_dict, target_type="place")
+                    
+                    cat = (p.category or "").lower()
+                    if any(f in cat for f in ["food", "restaurant", "cafe", "dhaba"]):
+                        food_list.append(p_dict)
+                    elif any(m in cat for m in ["market", "bazaar"]):
+                        markets_list.append(p_dict)
+                    elif any(a in cat for a in ["attraction", "college", "monument", "ghat", "temple"]):
+                        attractions_list.append(p_dict)
+                    elif any(h in cat for h in ["gem", "hidden"]):
+                        hidden_gems_list.append(p_dict)
+                    else:
+                        db_places.append(p_dict)
+
+                # Fetch travel tips from DB
+                tips_records = db.query(TravelTip).filter(TravelTip.city.ilike(f"%{location}%")).limit(5).all()
+                tips_list = [t.tip_text for t in tips_records] if tips_records else []
 
                 results = {
-                    "location": normalized_location,
-                    "coordinates": {"lat": recent_places[0].lat, "lng": recent_places[0].lng},
+                    "location": normalized_location.title(),
+                    "coordinates": {"lat": city_places[0].lat, "lng": city_places[0].lng},
                     "places": db_places,
-                    "food": [], "markets": [], "attractions": [], "hidden_gems": [], "tips": [],
-                    "enriching": True
+                    "food": food_list,
+                    "markets": markets_list,
+                    "attractions": attractions_list,
+                    "hidden_gems": hidden_gems_list,
+                    "tips": tips_list,
+                    "enriching": False
                 }
+
+                await cache_service.set_cache(f"search:{location_lower}", results, ttl=settings.CACHE_TTL_SECONDS)
+                if existing_context:
+                    existing_context.ai_response = results
+                    db.commit()
                 return results
         finally:
             db.close()

@@ -46,13 +46,42 @@ class YouTubeService:
                 return cached_transcript.get("transcript")
             return str(cached_transcript)
 
-        # 2. Call external POST /transcript endpoint if configured
+        # 2. Call Primary external transcript API (transcriptapi.com) if configured
+        if settings.TRANSCRIPT_API_KEY:
+            t_url = settings.TRANSCRIPT_API_URL or "https://transcriptapi.com/api/v2/youtube/transcript"
+            logger.info(f"Calling transcriptapi.com for video {video_id}...")
+            try:
+                headers = {"Authorization": f"Bearer {settings.TRANSCRIPT_API_KEY}"}
+                params = {"video_url": video_url, "format": "json"}
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    res = await client.get(t_url, params=params, headers=headers)
+                    if res.status_code == 200:
+                        resp_json = res.json()
+                        raw_transcript = resp_json.get("transcript")
+                        transcript_text = ""
+                        if isinstance(raw_transcript, list):
+                            transcript_text = " ".join([t.get("text", "") for t in raw_transcript if isinstance(t, dict) and t.get("text")])
+                        elif isinstance(raw_transcript, str):
+                            transcript_text = raw_transcript
+                        elif raw_transcript is not None:
+                            transcript_text = str(raw_transcript)
+
+                        if transcript_text:
+                            await cache_service.set_cache(cache_key, {"transcript": transcript_text}, ttl=86400)
+                            logger.info(f"Successfully fetched and cached transcript from transcriptapi.com for video {video_id}")
+                            return transcript_text
+                    else:
+                        logger.warning(f"transcriptapi.com returned status {res.status_code} for {video_id}: {res.text[:200]}")
+            except Exception as t_err:
+                logger.warning(f"transcriptapi.com error for {video_id}: {t_err}")
+
+        # 3. Fallback to secondary external POST /transcript endpoint if configured
         api_url = settings.YOUTUBE_TRANSCRIPT_API_URL
         if not api_url:
-            logger.info("No YOUTUBE_TRANSCRIPT_API_URL configured, skipping external API.")
+            logger.info("No legacy YOUTUBE_TRANSCRIPT_API_URL configured, skipping.")
             return None
 
-        logger.info(f"Calling external YouTube Transcript API for video {video_id}...")
+        logger.info(f"Calling legacy external YouTube Transcript API for video {video_id}...")
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.post(api_url, json={"url": video_url})

@@ -52,11 +52,16 @@ $$W = \frac{v}{v + m} R + \frac{m}{v + m} C$$
 ### 6. Multi-Source Intelligence Engine
 Ghumo gathers and cross-references data from 6 concurrent sources:
 1. **Nominatim (OpenStreetMap) & OpenTripMap**: GPS geocoding and bounding boxes.
-2. **Overpass API (OSM)**: Physical ground-truth verification of landmarks, markets, and cafes.
+2. **Overpass API (OSM)**: Physical ground-truth verification of landmarks, markets, cafes, and amenities with automated HTTP header compliance.
 3. **Reddit Discussions**: Real traveler sentiment, warnings, and local tips via search fallbacks.
-4. **YouTube Data & Transcripts**: Vlogger insights, video summaries, and community comments.
+4. **YouTube Data & Transcripts**: Primary integration with `transcriptapi.com` (`TRANSCRIPT_API_KEY`) plus fallback scrapers for vlogger itineraries and tips, cached in Valkey for 24 hours.
 5. **Cloudflare Browser Rendering**: Anti-bot resilient web crawling for official tourism pricing and schedules.
-6. **Place Image Resolver**: High-resolution CC licensed photography.
+6. **Place Image Resolver**: High-resolution CC licensed photography from Wikimedia Commons and Unsplash.
+
+### 7. Hybrid In-Process & Fast-Cache Architecture
+- **Instant Returns (< 50ms)**: Returns immediately from Valkey hot cache or PostgreSQL for existing and seeded locations.
+- **Direct Live Research Pipeline**: For new or uncached locations, the backend immediately executes an in-process deep mining pipeline (OSM + YouTube + Reddit + Gemini AI) without stalling on external task workers.
+- **Manual Place Seeding & Hierarchical POI Resolution**: Supports curated place seeds (`data/places_seed.json`) with collision resolution that automatically elevates matched landmarks (e.g. universities, temples) within their parent city context.
 
 ---
 
@@ -108,6 +113,9 @@ Create a `.env` file in the root directory:
 DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres
 VALKEY_URL=redis://localhost:6379
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL_NAME=gemini-2.5-flash
+TRANSCRIPT_API_KEY=your_transcriptapi_com_key
+TRANSCRIPT_API_URL=https://transcriptapi.com/api/v2/youtube/transcript
 UNSPLASH_ACCESS_KEY=your_unsplash_access_key
 GOOGLE_PLACES_API_KEY=your_google_places_key
 CACHE_SEARCH_THRESHOLD=3
@@ -115,17 +123,23 @@ CACHE_TTL_SECONDS=604800
 MIN_FEEDBACK_COUNT=5
 ```
 
-### 4. Run Development Server
+### 4. Seed Curated Places (Optional)
+To import initial verified landmarks and POIs into PostgreSQL:
+```bash
+python seed_places.py
+```
+
+### 5. Run Development Server
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 5. Run Celery Worker
+### 6. Run Celery Worker (Optional for asynchronous background tasks)
 ```bash
 celery -A app.celery_app worker --loglevel=info --pool=solo
 ```
 
-### 6. Run Unit Tests
+### 7. Run Unit Tests
 ```bash
 python -m pytest
 ```

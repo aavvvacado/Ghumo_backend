@@ -72,13 +72,27 @@ class SearchService:
 
             # Check persistent AI context
             existing_context = db.query(AIContext).filter(AIContext.query == location_lower).first()
-            if existing_context:
-                logger.info(f"PostgreSQL AI context hit for: {normalized_location}")
-                # Update Valkey
-                await cache_service.set_cache(f"search:{location_lower}", existing_context.ai_response, ttl=86400)
-                return existing_context.ai_response
+            if existing_context and existing_context.ai_response and isinstance(existing_context.ai_response, dict):
+                res = existing_context.ai_response
+                has_content = any(len(res.get(k, [])) > 0 for k in ["places", "food", "markets", "attractions", "hidden_gems"])
+                if has_content:
+                    logger.info(f"PostgreSQL AI context hit for: {normalized_location}")
+                    await cache_service.set_cache(f"search:{location_lower}", res, ttl=86400)
+                    return res
         finally:
             db.close()
+
+        # Check fast DB / POI / City intelligence before hitting slow external crawlers
+        try:
+            from app.services.enrichment_service import enrichment_service
+            fast_res = await enrichment_service.get_fast_results(location)
+            if fast_res and isinstance(fast_res, dict):
+                has_fast_content = any(len(fast_res.get(k, [])) > 0 for k in ["places", "food", "markets", "attractions", "hidden_gems"])
+                if has_fast_content:
+                    logger.info(f"Fast DB/POI intelligence hit for: {normalized_location}")
+                    return fast_res
+        except Exception as fast_err:
+            logger.warning(f"Fast enrichment lookup error: {fast_err}")
 
         # 3. Layer 3: External APIs (Gather new intelligence)
         logger.info(f"Cache miss. Gathering fresh intelligence for {normalized_location}...")

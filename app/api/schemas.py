@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 
 class ItineraryActivityItem(BaseModel):
     time_slot: Optional[str] = "Morning"  # e.g., "09:00 AM - 11:30 AM" or "Morning"
@@ -91,7 +91,7 @@ class SearchResponse(BaseModel):
     markets: List[dict] = []
     attractions: List[dict] = []
     hidden_gems: List[dict] = []
-    tips: List[dict] = []
+    tips: List[Union[dict, str]] = []
     enriching: bool = False
 
 class JobResponse(BaseModel):
@@ -183,7 +183,7 @@ class PlaceSuggestionItem(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
     search_count: int = 1
-    image: dict
+    image: Optional[dict] = None
     feedback: Optional[dict] = None
 
 class SuggestionsResponse(BaseModel):

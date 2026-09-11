@@ -17,6 +17,17 @@ class ItineraryService:
         Parses raw conversational text and fills in any missing constraints.
         Produces standardized destination, duration, budget, mode, and interests.
         """
+        def _clean_dummy(val: Optional[str]) -> Optional[str]:
+            if not val or not isinstance(val, str):
+                return None
+            cleaned = val.strip()
+            if cleaned.lower() in ["string", "null", "undefined", "none", "n/a"]:
+                return None
+            return cleaned
+
+        location = _clean_dummy(location)
+        time_available = _clean_dummy(time_available)
+        budget = _clean_dummy(budget)
         user_input_raw = (prompt or "").strip()
         
         # If user gave explicit structured fields and no free-form prompt
@@ -158,26 +169,68 @@ class ItineraryService:
 
         # 2. Query verified places from local database and OpenStreetMap
         data = await search_service.search_all(dest)
-        attractions = [a["name"] for a in data.get("attractions", [])[:10]]
-        restaurants = [r["name"] for r in data.get("restaurants", [])[:8]]
-        markets = [m["name"] for m in data.get("markets", [])[:6]]
-        has_local_data = len(attractions) > 0 or len(restaurants) > 0 or len(markets) > 0
 
-        # 3. Construct structured AI prompt
+        # If dest has multiple components (e.g. "Muradnagar, Ghaziabad"), pull and merge POIs
+        attraction_items = list(data.get("attractions", []))
+        food_items = list(data.get("food", [])) or list(data.get("restaurants", []))
+        market_items = list(data.get("markets", []))
+        gem_items = list(data.get("hidden_gems", []))
+        transit_items = [p for p in data.get("places", []) if p.get("type") in ["transit_hub", "station"]]
+
+        # Check sub-parts if primary search returned few results
+        parts = [p.strip() for p in re.split(r'[,/]| and ', dest) if len(p.strip()) >= 3]
+        if len(parts) > 1:
+            for sub_part in parts:
+                sub_data = await search_service.search_all(sub_part)
+                for a in sub_data.get("attractions", []):
+                    if a.get("name") not in [x.get("name") for x in attraction_items]:
+                        attraction_items.append(a)
+                for f in sub_data.get("food", []):
+                    if f.get("name") not in [x.get("name") for x in food_items]:
+                        food_items.append(f)
+                for g in sub_data.get("hidden_gems", []):
+                    if g.get("name") not in [x.get("name") for x in gem_items]:
+                        gem_items.append(g)
+                for m in sub_data.get("markets", []):
+                    if m.get("name") not in [x.get("name") for x in market_items]:
+                        market_items.append(m)
+
+        has_local_data = len(attraction_items) > 0 or len(food_items) > 0 or len(gem_items) > 0 or len(market_items) > 0
+
+        def _describe_spot(p: dict) -> str:
+            name = p.get("name", "")
+            p_type = p.get("type", "spot")
+            desc = p.get("description", "")
+            if desc:
+                return f"'{name}' ({p_type}): {desc}"
+            return f"'{name}' ({p_type})"
+
+        # 3. Construct structured AI prompt with rich local intelligence
         prompt_instructions = (
-            f"You are the world's best travel planner. Create an extraordinary, highly optimized travel plan for {dest}.\n"
+            f"You are the world's best local travel curator. Create an extraordinary, highly specific, hyper-authentic travel plan for {dest}.\n"
             f"Target Duration: {duration}\n"
             f"Itinerary Segregation Mode: '{mode}' ('day_wise' for multi-day trips with Day 1, Day 2; 'time_wise' for short same-day trips with Morning, Afternoon, Evening)\n"
             f"Budget: {plan_budget}\n"
             f"Interests & Vibe: {', '.join(interests_list)}\n"
             f"Stay Preference: {stay_pref}\n\n"
+            f"STRICT INSTRUCTIONS:\n"
+            f"1. NEVER invent vague, generic names like 'Local Temples', 'NH-58 Area', 'Local Eatery', 'Heritage Center', or 'City Market'.\n"
+            f"2. You MUST use the EXACT real places, student hangouts, cafes, dhabas, ghats, and landmarks provided below.\n"
+            f"3. In each activity's 'notes' and 'purpose', weave in the authentic insider details provided (e.g., student discounts, exact food specialties, pillar numbers, temple timings, Namo Bharat transit links).\n\n"
         )
 
         if has_local_data:
-            prompt_instructions += "Prioritize these verified local landmarks and spots:\n"
-            if attractions: prompt_instructions += f"- Attractions: {', '.join(attractions)}\n"
-            if restaurants: prompt_instructions += f"- Dining/Food: {', '.join(restaurants)}\n"
-            if markets: prompt_instructions += f"- Markets/Shopping: {', '.join(markets)}\n\n"
+            prompt_instructions += "VERIFIED LOCAL LANDMARKS & SPOTS (YOU MUST INTEGRATE THESE):\n"
+            if attraction_items:
+                prompt_instructions += "- Key Attractions & Culture:\n  * " + "\n  * ".join([_describe_spot(a) for a in attraction_items[:12]]) + "\n"
+            if food_items:
+                prompt_instructions += "- Authentic Local Food, Cafes & Dhabas:\n  * " + "\n  * ".join([_describe_spot(f) for f in food_items[:14]]) + "\n"
+            if gem_items:
+                prompt_instructions += "- Student Secrets & Hidden Gems:\n  * " + "\n  * ".join([_describe_spot(g) for g in gem_items[:10]]) + "\n"
+            if market_items:
+                prompt_instructions += "- Local Markets & Bazaars:\n  * " + "\n  * ".join([_describe_spot(m) for m in market_items[:8]]) + "\n"
+            if transit_items:
+                prompt_instructions += "- Transit Hubs (Namo Bharat RRTS / Rail):\n  * " + "\n  * ".join([_describe_spot(t) for t in transit_items[:4]]) + "\n\n"
         else:
             prompt_instructions += (
                 "Verified local database places are sparse for this exact location. Use your expert real-world knowledge "
@@ -312,7 +365,7 @@ Note: If mode is 'day_wise', provide the 'days' array and set 'time_slots' to nu
         # Concurrent image resolution
         if places_to_resolve:
             try:
-                await place_image_resolver.resolve_places_batch(places_to_resolve, city=dest, timeout=4.0)
+                await place_image_resolver.resolve_places_batch(places_to_resolve, city=dest, timeout=2.0)
                 # Map resolved images back to activities
                 image_map = {p["name"]: p.get("image") for p in places_to_resolve if p.get("image")}
                 
@@ -348,12 +401,12 @@ Note: If mode is 'day_wise', provide the 'days' array and set 'time_slots' to nu
                 prose_markdown += f"- **{cat.capitalize()}**: {amount}\n"
 
         # 8. Assemble recommended POI cards
-        rec_places = (data.get("restaurants", []) + data.get("food", []) + data.get("markets", []))[:10]
-        rec_attractions = data.get("attractions", [])[:10]
+        rec_places = (food_items + market_items + gem_items)[:10]
+        rec_attractions = attraction_items[:10]
         all_rec_items = rec_places + rec_attractions
         if all_rec_items:
             try:
-                await place_image_resolver.resolve_places_batch(all_rec_items, city=dest, timeout=2.5)
+                await place_image_resolver.resolve_places_batch(all_rec_items, city=dest, timeout=2.0)
             except Exception as e:
                 logger.debug(f"Failed resolving recommendation POI images: {e}")
 

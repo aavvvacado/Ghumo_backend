@@ -32,17 +32,28 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Starting without Redis: {e}")
         
-    # Start periodic discovery agent
-    from app.services.discovery_agent import discovery_agent
-    discovery_agent.start()
+    # Autonomous background discovery scanner (Disabled: Crawlers only run on explicit user search/request)
+    # from app.services.discovery_agent import discovery_agent
+    # discovery_agent.start()
+    logger.info("Autonomous crawlers disabled. Searching will only occur on explicit user request.")
     
     yield
+
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Ghumo Backend",
     description="Scalable travel discovery and itinerary engine",
     version="0.1.0",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.add_exception_handler(Exception, global_exception_handler)
