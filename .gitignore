@@ -53,3 +53,17 @@ Thumbs.db
 crawlers/data/
 logs/
 *.log
+
+# Seeding & manual place data
+seed_places.py
+data/
+data/places_seed.json
+*seed*.json
+*seed*.py
+manual_*.json
+
+# Test logs and temporary outputs
+test_output.txt
+tests/verify_output.txt
+brag-output/
+tmp/
